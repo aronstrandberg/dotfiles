@@ -1,2 +1,2 @@
 # dotfiles
-@aronstrandberg does files
+@aronstrandberg does dotfiles
