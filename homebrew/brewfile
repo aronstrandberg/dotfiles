@@ -1,0 +1,47 @@
+cask_args appdir: '/Applications'
+
+tap 'caskroom/cask'
+tap 'homebrew/bundle'
+tap 'thoughtbot/formulae'
+
+# stuff
+brew 'coreutils'
+brew 'git'
+brew 'hub'
+brew 'imagemagick'
+brew 'libgit2'
+brew 'openssl'
+brew 'rcm'
+brew 'tree'
+brew 'wget'
+
+# programming languages
+brew 'go'
+brew 'node'
+brew 'swipl' # prolog
+
+# databases
+brew 'postgresql'
+
+# fish
+brew 'fish'
+
+# ruby
+brew 'ruby-install'
+brew 'chruby'
+brew 'chruby-fish'
+
+cask '1password'
+cask 'alfred'
+cask 'caffeine'
+cask 'dropbox'
+cask 'github-desktop'
+cask 'google-chrome'
+cask 'iterm2'
+cask 'slack'
+cask 'spectacle'
+cask 'spotify'
+cask 'sublime-text'
+cask 'the-unarchiver'
+cask 'transmission'
+cask 'vlc'

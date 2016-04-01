@@ -1,0 +1,53 @@
+[alias]
+  a = add
+  s = status -s
+  c = commit -v
+  d = diff
+  p = pull --rebase
+  pr = pull-request
+  r = remote -v
+  l = log --format=babe
+
+  tags = tag -l
+  branches = branch -a
+  remotes = remote -v
+
+  # Amend the currently staged files to the latest commit
+  amend = commit --amend --reuse-message=HEAD
+
+  # List contributors with number of commits
+  contributors = shortlog --summary --numbered
+
+[apply]
+  # Detect whitespace errors when applying a patch
+  whitespace = fix
+
+[color]
+  diff = auto
+  status = auto
+  branch = auto
+  ui = true
+
+[color "status"]
+  added = green
+  changed = yellow
+  untracked = red
+
+[core]
+  # Treat spaces before tabs and all kinds of trailing whitespace as an error
+  # [default] trailing-space: looks for spaces at the end of a line
+  # [default] space-before-tab: looks for spaces before tabs at the beginning of a line
+  whitespace = space-before-tab,-indent-with-non-tab,trailing-space
+
+[diff]
+  # Detect copies as well as renames
+  renames = copies
+
+[help]
+  autocorrect = 1
+
+[pretty]
+  babe = %Cred%h %Creset %<(80)%s %<(20)%an %Cgreen %<(10)(%cr) %Creset
+
+[push]
+  default = simple
