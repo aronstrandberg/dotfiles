@@ -18,7 +18,6 @@ brew 'wget'
 # programming languages
 brew 'go'
 brew 'node'
-brew 'swipl' # prolog
 
 # databases
 brew 'postgresql'
