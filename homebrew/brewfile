@@ -6,14 +6,16 @@ tap 'thoughtbot/formulae'
 
 # stuff
 brew 'coreutils'
-brew 'git'
-brew 'hub'
 brew 'imagemagick'
-brew 'libgit2'
 brew 'openssl'
 brew 'rcm'
 brew 'tree'
 brew 'wget'
+
+# git stuff
+brew 'git'
+brew 'hub'
+brew 'libgit2'
 
 # programming languages
 brew 'go'
