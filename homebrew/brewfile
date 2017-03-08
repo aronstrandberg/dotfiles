@@ -16,6 +16,7 @@ brew 'wget'
 brew 'git'
 brew 'hub'
 brew 'libgit2'
+brew 'diff-so-fancy'
 
 # programming languages
 brew 'go'
