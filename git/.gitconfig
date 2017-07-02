@@ -5,8 +5,14 @@
   email = strandberg.aron@gmail.com
 
 [alias]
+  # When doing "git git log" or some such, do not complain about "git" not
+	# being a valid Git command. This happens when copy-pasting examples, for
+	# instance.
+  git = !git
+
   # basics
   d = diff
+  dc = diff --cached
   s = status
   l = log -30 --no-merges --date=format:'%d/%m' --format=babe # the custom babe format is specified below
   conf = ! atom ~/.gitconfig # open this config file
@@ -74,6 +80,7 @@
   editor = atom -n -w
   excludesfile = ~/.gitignore
   pager = "diff-so-fancy | less --tabs=4 -RFX"
+  preloadindex = true
 
 [diff]
   # Detect copies as well as renames

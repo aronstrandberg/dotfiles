@@ -9,3 +9,4 @@ Credit where credit is due – repos that I've to some degree used as inspiratio
 
 **[mathiasbynens/dotfiles](https://github.com/mathiasbynens/dotfiles)**  
 **[holman/dotfiles](https://github.com/holman/dotfiles)**  
+**[janmoesen/tilde](https://github.com/janmoesen/tilde)**
