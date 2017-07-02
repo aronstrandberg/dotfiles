@@ -88,3 +88,16 @@ alias mv='mv -i'
 alias g='git'
 alias git='hub'
 
+# open config files
+function config
+  if set -q argv[1]
+    switch $argv[1]
+    case git
+      atom ~/.gitconfig
+    case fish
+      atom ~/.config/fish
+    case dotfiles
+      atom ~/dev/dotfiles
+    end
+  end
+end
