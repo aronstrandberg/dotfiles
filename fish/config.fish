@@ -110,6 +110,11 @@ function serve
     http-server -p 8888
   end
 end
+
+function strip_dots
+  echo $argv[1] | replace "." " " | pbcopy
+end
+
 function set_calendar_days
   if set -q argv[1]
     defaults write com.apple.iCal n\ days\ of\ week $argv[1]
