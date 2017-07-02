@@ -11,4 +11,4 @@ sh fish.sh
 sh ruby.sh
 
 # setup git
-rsync -avh git/ ~
+sh git.sh
