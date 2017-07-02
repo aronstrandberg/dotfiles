@@ -1,12 +1,3 @@
-# Path to Oh My Fish install.
-set -gx OMF_PATH "/Users/aron/.local/share/omf"
-
-# Load oh-my-fish configuration.
-source $OMF_PATH/init.fish
-
-# Path to your custom folder (default path is $FISH/custom)
-set fish_custom $HOME/dotfiles/oh-my-fish
-
 # Load fish prompt
 source ~/.config/fish/prompt.fish
 
