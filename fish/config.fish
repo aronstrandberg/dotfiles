@@ -27,6 +27,14 @@ function print
   cat $f | ssh aronst@u-shell.csc.kth.se "lpr -P $l"
 end
 
+# open files and folders from the terminal
+function o
+  if set -q argv[1]
+    open $argv[1]
+  else
+    open .
+  end
+end
 # nicer sublime alias
 function s
   sublime $argv
