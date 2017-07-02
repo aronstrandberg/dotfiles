@@ -85,8 +85,10 @@ alias cp='cp -i'
 alias mv='mv -i'
 
 # git stuff
-alias g='git'
 alias git='hub'
+function g
+  hub $argv
+end
 
 # open config files
 function config
