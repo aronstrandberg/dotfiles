@@ -72,11 +72,6 @@ function kth
   end
 end
 
-# moving around folders
-function -
-  cd -
-end
-
 function ...
   cd ../.. $argv;
 end
