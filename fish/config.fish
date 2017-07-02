@@ -80,7 +80,7 @@ function ....
   cd ../../.. $argv;
 end
 
-# saving my ass
+# normal terminal commands
 alias cp='cp -i'
 alias mv='mv -i'
 
@@ -88,4 +88,3 @@ alias mv='mv -i'
 alias g='git'
 alias git='hub'
 
-alias grep=‘grep --color=auto’
