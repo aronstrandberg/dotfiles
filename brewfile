@@ -28,6 +28,7 @@ brew 'postgresql'
 
 # fish
 brew 'fish'
+brew 'fasd'
 
 # ruby
 brew 'ruby-install'
