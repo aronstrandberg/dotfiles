@@ -6,4 +6,7 @@ if [ $SHELL != "/usr/local/bin/fish" ]; then
   chsh -s /usr/local/bin/fish
 fi
 
+mkdir -p ~/.config
+rsync -avh fish ~/.config
 
+echo "Installed fish"
