@@ -1,5 +1,5 @@
 # setup macos
-sh osx.sh
+sh macos.sh
 
 # setup homebrew
 sh brew.sh
