@@ -110,3 +110,10 @@ function serve
     http-server -p 8888
   end
 end
+function set_calendar_days
+  if set -q argv[1]
+    defaults write com.apple.iCal n\ days\ of\ week $argv[1]
+  else
+    echo "No argument supplied"
+  end
+end
