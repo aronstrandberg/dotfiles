@@ -35,6 +35,12 @@ function o
     open .
   end
 end
+
+# nicer atom alias
+function a
+  atom $argv
+end
+
 # nicer sublime alias
 function s
   sublime $argv
