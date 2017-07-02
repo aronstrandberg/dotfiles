@@ -1,76 +1,47 @@
-set __toaster_color_orange FD971F
-set __toaster_color_blue 6EC9DD
-set __toaster_color_green 00FF7F
-set __toaster_color_yellow E6DB7E
-set __toaster_color_pink F92672
-set __toaster_color_grey 554F48
-set __toaster_color_white F1F1F1
-set __toaster_color_purple 9458FF
-set __toaster_color_lilac 324AB2
+# theme based on https://github.com/oh-my-fish/theme-eclm
 
-function __toaster_color_echo
-  set_color $argv[1]
-  echo -n $argv[2]
+function git_branch
+  echo (command git symbolic-ref HEAD ^/dev/null | sed -e 's|^refs/heads/||')
 end
 
-function __toaster_current_folder
-  # echo -n $PWD #| grep -o -E '[^\/]+$'
-  # echo -n (prompt_pwd) #| grep -o -E '[^\/]+$'
-  # echo -n $PWD | sed "s/^$home_escaped/~/" #| sed ’s/ /%20/g’
+function git_dirty_status
+  echo (command git status -s --ignore-submodules=dirty ^/dev/null)
+end
+
+function current_directory
   echo -n $PWD | sed -e "s|^$HOME|~|"
-   # echo -n (basename $PWD) | sed -e "s|^$HOME|~|"
-end
-
-function __toaster_git_status_codes
-  echo (git status --porcelain ^/dev/null | sed -E 's/(^.{3}).*/\1/' | tr -d ' \n')
-end
-
-function __toaster_git_branch_name
-  echo (git rev-parse --abbrev-ref HEAD ^/dev/null)
-end
-
-function __toaster_rainbow
-  if echo $argv[1] | grep -q -e $argv[3]
-    # __toaster_color_echo $argv[2] "彡ミ"
-    __toaster_color_echo $argv[2] "●"
-
-  end
-end
-
-function __toaster_git_status_icons
-  set -l git_status (__toaster_git_status_codes)
-
-  __toaster_rainbow $git_status $__toaster_color_pink 'D'
-  __toaster_rainbow $git_status $__toaster_color_orange 'R'
-  __toaster_rainbow $git_status $__toaster_color_white 'C'
-  __toaster_rainbow $git_status $__toaster_color_green 'A'
-  __toaster_rainbow $git_status $__toaster_color_blue 'U'
-  __toaster_rainbow $git_status $__toaster_color_lilac 'M'
-  __toaster_rainbow $git_status $__toaster_color_grey '?'
-end
-
-function __toaster_git_status
-  # In git
-  if test -n (__toaster_git_branch_name)
-
-    __toaster_color_echo $__toaster_color_blue " git"
-    __toaster_color_echo $__toaster_color_green ":"(__toaster_git_branch_name)
-
-    if test -n (__toaster_git_status_codes)
-      __toaster_color_echo $__toaster_color_pink ' ●'
-      # __toaster_color_echo $__toaster_color_white ' [^._.^]ﾉ'
-      __toaster_git_status_icons
-    else
-      __toaster_color_echo $__toaster_color_green ' ○'
-    end
-  end
 end
 
 function fish_prompt
-  # __toaster_color_echo $__toaster_color_purple "$USER "
-  # __toaster_color_echo $__toaster_color_white "in "
-  __toaster_color_echo $__toaster_color_green (__toaster_current_folder)
-  __toaster_git_status
-  echo
-  __toaster_color_echo $__toaster_color_white "% "
+  set -l last_status $status
+  set -l cyan (set_color -o cyan)
+  set -l yellow (set_color -o yellow)
+  set -l red (set_color -o red)
+  set -l blue (set_color -o blue)
+  set -l green (set_color -o green)
+  set -l normal (set_color normal)
+
+  set -l cwd $cyan(current_directory)
+
+  if [ (git_branch) ]
+    if test (git_branch) = 'master'
+      set -l git_branch (git_branch)
+      set git_info "$normal ($red$git_branch$normal)"
+    else
+      set -l git_branch (git_branch)
+      set git_info "$normal ($yellow$git_branch$normal)"
+    end
+
+    if [ (git_dirty_status) ]
+      set -l dirty "$yellow ✗"
+      set git_info "$git_info$dirty"
+    end
+  end
+
+  # Notify if a command took more than 5 minutes
+  if [ "$CMD_DURATION" -gt 300000 ]
+    echo The last command took (math "$CMD_DURATION/1000") seconds.
+  end
+
+  echo -n -s $cwd $git_info $normal ' '
 end
