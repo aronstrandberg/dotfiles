@@ -1,22 +1,55 @@
+# This is Git's per-user configuration file.
+[user]
+  # Please adapt and uncomment the following lines:
+  name = Aron Strandberg
+  email = strandberg.aron@gmail.com
+
 [alias]
-  a = add
-  s = status -s
-  c = commit -v
+  # basics
   d = diff
-  p = pull --rebase
-  pr = pull-request
-  r = remote -v
-  l = log --format=babe
+  s = status
+  l = log -30 --no-merges --date=format:'%d/%m' --format=babe # the custom babe format is specified below
+  conf = ! atom ~/.gitconfig # open this config file
 
-  tags = tag -l
-  branches = branch -a
-  remotes = remote -v
-
+  # commiting
+  a = add
+  b = checkout
+  c = commit -v
+  pr = pull-request | pbcopy
   # Amend the currently staged files to the latest commit
   amend = commit --amend --reuse-message=HEAD
+  unstage = reset HEAD
 
-  # List contributors with number of commits
+  # pulling
+  f = fetch --all
+
+  # pushing
+  p = push
+  pf = push --force
+  pn = push --set-upstream origin (git rev-parse --abbrev-ref HEAD ^ /dev/null)
+
+  # remotes
+  remotes = remote -v
+
+  # branches
+  master = checkout master
+  branches = branch -v
+  merged = ! git branch --merged > merged.txt && git branch -r --merged > rmerged.txt && comm -2 merged.txt rmerged.txt && rm merged.txt rmerged.txt
+  delete-branch = ! git branch -d $1
+  clean-branches = ! git checkout master && git branch --merged | grep -v ‘\\*’ | xargs -n 1 git branch -d
+
+  # rebasing
+  rb = "!f() { if [ -z $1 ]; then git rebase origin/master; else git rebase -i HEAD~$1; fi }; f"
+  # ff = "!f() { if [ -z $1 ]; then git fetch $1; git rebase origin/$1; else git fetch master; git rebase origin/master; fi }; f"
+  ff = "!f() { if [ -z $1 ]; then git fetch origin master; git rebase origin/master; else git fetch origin $1; git rebase origin/$1; fi }; f"
+  # ff = ! git fetch --all && git rebase origin/master
+
+  # other stuff
+  tags = tag -l
+   # List contributors with number of commits
   contributors = shortlog --summary --numbered
+  # Number of lines changed
+  lines = ! git diff | wc -l
 
 [apply]
   # Detect whitespace errors when applying a patch
@@ -38,16 +71,32 @@
   # [default] trailing-space: looks for spaces at the end of a line
   # [default] space-before-tab: looks for spaces before tabs at the beginning of a line
   whitespace = space-before-tab,-indent-with-non-tab,trailing-space
+  editor = atom -n -w
+  excludesfile = ~/.gitignore
+  pager = "diff-so-fancy | less --tabs=4 -RFX"
 
 [diff]
   # Detect copies as well as renames
   renames = copies
+  compactionHeuristic = true
 
 [help]
   autocorrect = 1
 
 [pretty]
-  babe = %Cred%h %Creset %<(80)%s %<(20)%an %Cgreen %<(10)(%cr) %Creset
+  babe = %C(yellow) %h %Cgreen %<(5)%cd %Cblue %<(18)%an %Creset %<(70)%s
 
 [push]
   default = simple
+
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+
+[credential]
+  helper = osxkeychain
+
+[hub]
+  host = https://gits-15.sys.kth.se
