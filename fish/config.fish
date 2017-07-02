@@ -101,3 +101,12 @@ function config
     end
   end
 end
+
+# serve static files
+function serve
+  if set -q argv[1]
+    http-server -p $argv[1]
+  else
+    http-server -p 8888
+  end
+end
