@@ -1,36 +1,22 @@
-# Path to your oh-my-fish.
-set fish_path $HOME/.oh-my-fish
+# Path to Oh My Fish install.
+set -gx OMF_PATH "/Users/aron/.local/share/omf"
 
-source ~/.config/fish/prompt.fish
-
-# Theme
-# set fish_theme robbyrussell
-# set fish_theme toaster
-
-# Remove annoying welcome message
-set fish_greeting ""
-
-# Which plugins would you like to load? (plugins can be found in ~/.oh-my-fish/plugins/*)
-# Custom plugins may be added to ~/.oh-my-fish/custom/plugins/
-# Example format: set fish_plugins autojump bundler
-# set fish_plugins autojump
-
-# chruby
-source /usr/local/share/chruby/chruby.fish
-
-# Fix autojump
-# if test -f /Users/aron/.autojump/share/autojump/autojump.fish;
-#   . /Users/aron/.autojump/share/autojump/autojump.fish;
-# end
-# set AUTOJUMP_IGNORE_CASE = 1
-# source /etc/profile.d/autojump.fish
+# Load oh-my-fish configuration.
+source $OMF_PATH/init.fish
 
 # Path to your custom folder (default path is $FISH/custom)
 set fish_custom $HOME/dotfiles/oh-my-fish
 
-# Load oh-my-fish configuration
-. $fish_path/oh-my-fish.fish
+# Load fish prompt
+source ~/.config/fish/prompt.fish
 
+# Remove annoying welcome message
+set fish_greeting ""
+
+# chruby
+source /usr/local/share/chruby/chruby.fish
+
+# print stuff at kth
 function print
   # f is file
   set f $argv[1]
