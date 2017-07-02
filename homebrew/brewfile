@@ -17,6 +17,7 @@ brew 'git'
 brew 'hub'
 brew 'gist'
 brew 'libgit2'
+brew 'git-lfs'
 brew 'diff-so-fancy'
 
 # programming languages
