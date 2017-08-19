@@ -86,9 +86,9 @@ function config
   if set -q argv[1]
     switch $argv[1]
     case git
-      atom ~/.gitconfig
+      atom ~/dev/dotfiles/git
     case fish
-      atom ~/.config/fish
+      atom ~/dev/dotfiles/fish
     case dotfiles
       atom ~/dev/dotfiles
     end
