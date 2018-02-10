@@ -7,7 +7,7 @@ set fish_greeting ""
 # chruby
 source /usr/local/share/chruby/chruby.fish
 source /usr/local/share/chruby/auto.fish
-chruby ruby-2.4.2
+chruby ruby-2.5.0
 
 # print stuff at kth
 function print
