@@ -2,13 +2,14 @@
 [user]
   # Please adapt and uncomment the following lines:
   name = Aron Strandberg
-  email = strandberg.aron@gmail.com
+  email = aron@aronstrandberg.com
 
 [alias]
   # When doing "git git log" or some such, do not complain about "git" not
 	# being a valid Git command. This happens when copy-pasting examples, for
 	# instance.
   git = !git
+  g = !git
 
   # basics
   d = diff
@@ -41,7 +42,7 @@
   master = checkout master
   branches = branch -v
   merged = ! git branch --merged > merged.txt && git branch -r --merged > rmerged.txt && comm -2 merged.txt rmerged.txt && rm merged.txt rmerged.txt
-  delete-branch = ! git branch -d $1
+  delete-branch = ! git branch -D $1
   clean-branches = ! git checkout master && git branch --merged | grep -v ‘\\*’ | xargs -n 1 git branch -d
 
   # rebasing
@@ -77,7 +78,7 @@
   # [default] trailing-space: looks for spaces at the end of a line
   # [default] space-before-tab: looks for spaces before tabs at the beginning of a line
   whitespace = space-before-tab,-indent-with-non-tab,trailing-space
-  editor = atom -n -w
+  editor = subl -n -w
   excludesfile = ~/.gitignore
   pager = "diff-so-fancy | less --tabs=4 -RFX"
   preloadindex = true
