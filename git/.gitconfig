@@ -87,6 +87,7 @@
   # Detect copies as well as renames
   renames = copies
   compactionHeuristic = true
+  algorithm = patience
 
 [help]
   autocorrect = 1
