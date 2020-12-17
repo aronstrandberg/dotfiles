@@ -1,6 +1,9 @@
 # Load fish prompt
 source ~/.config/fish/prompt.fish
 
+# Load KRY-specific config
+source ~/.config/fish/kry.fish
+
 # Remove annoying welcome message
 set fish_greeting ""
 
