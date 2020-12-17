@@ -90,11 +90,11 @@ function config
   if set -q argv[1]
     switch $argv[1]
     case git
-      atom ~/dev/dotfiles/git
+      sublime ~/dev/dotfiles/git
     case fish
-      atom ~/dev/dotfiles/fish
+      sublime ~/dev/dotfiles/fish
     case dotfiles
-      atom ~/dev/dotfiles
+      sublime ~/dev/dotfiles
     end
   end
 end
