@@ -75,6 +75,10 @@ end
 alias cp='cp -i'
 alias mv='mv -i'
 
+function l --wraps ls
+  ls -l $argv
+end
+
 # git stuff
 alias git='hub'
 function g
