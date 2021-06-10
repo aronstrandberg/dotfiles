@@ -48,6 +48,15 @@ function sublime
   end
 end
 
+# vim
+function v
+  vim $argv
+end
+
+function vim
+  nvim $argv
+end
+
 # ssh and sftp to kth servers
 function kth
   switch $argv[1]
@@ -81,6 +90,8 @@ alias mv='mv -i'
 function l --wraps ls
   ls -l $argv
 end
+
+asd
 
 # git stuff
 alias git='hub'
