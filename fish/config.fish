@@ -91,8 +91,6 @@ function l --wraps ls
   ls -l $argv
 end
 
-asd
-
 # git stuff
 alias git='hub'
 function g
