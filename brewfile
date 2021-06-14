@@ -10,6 +10,7 @@ brew 'openssl'
 brew 'rcm'
 brew 'tree'
 brew 'wget'
+brew 'httpie'
 
 # git stuff
 brew 'git'
