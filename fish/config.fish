@@ -91,6 +91,10 @@ function l --wraps ls
   ls -l $argv
 end
 
+function cat --wraps cat
+  bat $argv
+end
+
 # git stuff
 alias git='hub'
 function g
