@@ -43,7 +43,6 @@ brew 'chruby-fish'
 
 # applications
 cask '1password'
-cask 'alfred'
 cask 'atom'
 cask 'docker'
 cask 'dropbox'
