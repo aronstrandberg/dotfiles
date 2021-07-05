@@ -1,6 +1,3 @@
-# Load fish prompt
-source ~/.config/fish/prompt.fish
-
 # Load KRY-specific config
 source ~/.config/fish/kry.fish
 
