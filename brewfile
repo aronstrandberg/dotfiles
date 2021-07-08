@@ -22,7 +22,10 @@ brew 'diff-so-fancy'
 
 # programming languages
 brew 'go'
+
+# js
 brew 'node'
+brew 'yarn'
 
 # databases
 brew 'postgresql'
