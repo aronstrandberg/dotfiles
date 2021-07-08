@@ -44,10 +44,13 @@ brew 'ruby-install'
 brew 'chruby'
 brew 'chruby-fish'
 
+# docker
+brew 'docker'
+cask 'docker'
+
 # applications
 cask '1password'
 cask 'atom'
-cask 'docker'
 cask 'dropbox'
 cask 'flux'
 cask 'github'
