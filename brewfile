@@ -38,7 +38,8 @@ brew 'neovim'
 brew 'fzf'
 brew 'fd'
 brew 'bat'
-	
+brew 'jq'
+
 # ruby
 brew 'ruby-install'
 brew 'chruby'
