@@ -55,6 +55,7 @@ cask 'docker'
 # applications
 cask '1password'
 # cask 'atom'
+cask 'cron'
 cask 'dropbox'
 # cask 'flux'
 cask 'github'
