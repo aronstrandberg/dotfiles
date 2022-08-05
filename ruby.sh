@@ -1,5 +1,5 @@
-ruby-install ruby 2.4.2
-ruby-install --system ruby 2.4.2
+ruby-install ruby 3
+ruby-install --system ruby 3
 
 gem update --system
 gem install bundler
