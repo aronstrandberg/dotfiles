@@ -35,6 +35,7 @@ brew 'postgresql'
 # fish
 brew 'fish'
 brew 'fasd'
+brew 'fisher'
 
 # vim
 brew 'neovim'
