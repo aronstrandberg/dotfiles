@@ -4,7 +4,7 @@ sudo chown -R $(whoami):admin /usr/local
 which -s brew
 if [[ $? != 0 ]] ; then
   # install homebrew
-  ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
 else
   # upgrade homebrew
   brew update
