@@ -16,6 +16,7 @@ brew 'ag'
 # git stuff
 brew 'git'
 brew 'hub'
+brew 'gh'
 brew 'gist'
 brew 'libgit2'
 brew 'git-lfs'
