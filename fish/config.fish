@@ -1,6 +1,3 @@
-# Load KRY-specific config
-source ~/.config/fish/kry.fish
-
 # add homebrew packages directory to path
 fish_add_path /opt/homebrew/bin
 
