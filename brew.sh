@@ -1,6 +1,5 @@
-# set permissions something something
-sudo chown -R $(whoami):admin /usr/local
 
+# install homebrew if not present
 which -s brew
 if [[ $? != 0 ]] ; then
   # install homebrew
