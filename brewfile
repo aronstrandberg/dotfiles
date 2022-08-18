@@ -47,6 +47,10 @@ brew 'bat'
 brew 'jq'
 brew 'jump'
 
+# heroku
+tap 'heroku/brew'
+brew 'heroku'
+
 # ruby
 brew 'ruby-install'
 brew 'chruby'
