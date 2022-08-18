@@ -5,9 +5,9 @@ fish_add_path /opt/homebrew/bin
 set fish_greeting ""
 
 # chruby
-source /usr/local/share/chruby/chruby.fish
-source /usr/local/share/chruby/auto.fish
-chruby ruby-3
+# source /usr/local/share/chruby/chruby.fish
+# source /usr/local/share/chruby/auto.fish
+# chruby ruby-3
 
 # Setup Jump
 jump shell fish | source
