@@ -45,6 +45,7 @@ brew 'fzf'
 brew 'fd'
 brew 'bat'
 brew 'jq'
+brew 'jump'
 
 # ruby
 brew 'ruby-install'
