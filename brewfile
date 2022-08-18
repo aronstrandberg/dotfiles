@@ -63,6 +63,7 @@ cask 'docker'
 # applications
 cask '1password'
 # cask 'atom'
+cask 'cheatsheet'
 cask 'cron'
 cask 'dash'
 cask 'dropbox'
