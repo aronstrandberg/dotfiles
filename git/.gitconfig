@@ -3,6 +3,17 @@
   # Please adapt and uncomment the following lines:
   name = Aron Strandberg
   email = aron@aronstrandberg.com
+  signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJww2KGS0w4W8kVod6ejxKO9it+6+z2Sva9aLXQ8uRlJ
+
+[gpg]
+  format = ssh
+
+[gpg "ssh"]
+  program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
+
+[commit]
+  gpgsign = true
+
 
 [alias]
   # When doing "git git log" or some such, do not complain about "git" not
