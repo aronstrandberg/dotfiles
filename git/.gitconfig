@@ -91,7 +91,6 @@
   whitespace = space-before-tab,-indent-with-non-tab,trailing-space
   editor = vim
   excludesfile = ~/.gitignore
-  pager = "diff-so-fancy | less --tabs=4 -RFX"
   preloadindex = true
 
 [diff]
@@ -99,6 +98,7 @@
   renames = copies
   compactionHeuristic = true
   algorithm = patience
+  external = difft
 
 [help]
   autocorrect = 1
