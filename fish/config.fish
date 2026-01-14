@@ -97,16 +97,21 @@ function g
   hub $argv
 end
 
+# editor
+function editor
+  zed $argv
+end
+
 # open config files
 function config
   if set -q argv[1]
     switch $argv[1]
     case git
-      sublime ~/dev/dotfiles/git
+      editor ~/dev/dotfiles/git
     case fish
-      sublime ~/dev/dotfiles/fish
+      editor ~/dev/dotfiles/fish
     case dotfiles
-      sublime ~/dev/dotfiles
+      editor ~/dev/dotfiles
     end
   end
 end
