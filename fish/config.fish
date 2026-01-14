@@ -53,10 +53,6 @@ function v
   vim $argv
 end
 
-function vim
-  nvim $argv
-end
-
 # ssh and sftp to kth servers
 function kth
   switch $argv[1]
