@@ -99,7 +99,7 @@ end
 
 # git stuff
 alias git='hub'
-function g
+function g --wraps git
   hub $argv
 end
 
