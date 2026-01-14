@@ -27,6 +27,7 @@
   dc = diff --cached
   s = status
   l = log -30 --no-merges --date=format:'%d/%m' --format=babe # the custom babe format is specified below
+  lb = log origin/HEAD..HEAD --no-merges --date=format:'%d/%m' --format=babe # commits in current branch not in origin's main
   conf = ! atom ~/.gitconfig # open this config file
 
   # commiting
