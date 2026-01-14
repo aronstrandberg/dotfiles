@@ -1,0 +1,9 @@
+# .gitconfig.local - Machine-specific overrides
+# Copy this file to ~/.gitconfig.local and customize
+# This file is gitignored and will not be committed
+
+# Override user email for work
+# [user]
+#   email = aron.strandberg@nordnet.se
+
+# Override other settings as needed

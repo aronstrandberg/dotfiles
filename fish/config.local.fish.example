@@ -1,0 +1,10 @@
+# config.local.fish - Machine-specific and secret configuration
+# Copy this file to config.local.fish and fill in your values
+# This file is gitignored and will not be committed
+
+# Claude Code (Vertex AI)
+# set -x CLAUDE_CODE_USE_VERTEX 1
+# set -x CLOUD_ML_REGION europe-west1
+# set -x ANTHROPIC_VERTEX_PROJECT_ID your-project-id
+
+# Other secrets and machine-specific config go here

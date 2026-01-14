@@ -121,3 +121,8 @@
 
 [hub]
   host = https://gits-15.sys.kth.se
+
+# Include local overrides (not committed to repo)
+# Copy .gitconfig.local.example to ~/.gitconfig.local and customize
+[include]
+  path = ~/.gitconfig.local

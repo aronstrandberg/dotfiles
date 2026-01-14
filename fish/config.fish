@@ -9,6 +9,12 @@ set fish_greeting ""
 # source /usr/local/share/chruby/auto.fish
 # chruby ruby-3
 
+# Source local/secret config if it exists (not committed to repo)
+# Copy config.local.fish.example to config.local.fish and fill in your values
+if test -f ~/.config/fish/config.local.fish
+    source ~/.config/fish/config.local.fish
+end
+
 # Setup Jump
 # jump shell fish | source
 

@@ -1,1 +1,5 @@
 Brewfile.lock.json
+
+# Local/secret config files (not committed)
+fish/config.local.fish
+git/.gitconfig.local
