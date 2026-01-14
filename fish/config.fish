@@ -10,7 +10,7 @@ set fish_greeting ""
 # chruby ruby-3
 
 # Setup Jump
-jump shell fish | source
+# jump shell fish | source
 
 # print stuff at kth
 function print
