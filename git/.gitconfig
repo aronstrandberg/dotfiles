@@ -45,6 +45,9 @@
   p = push
   pf = push --force
   pn = push --set-upstream origin (git rev-parse --abbrev-ref HEAD ^ /dev/null)
+  # Cherry-pick a commit onto master and push to new remote branch (stateless - uses worktree)
+  # Delegates to the fish function in ~/.config/fish/functions/git-push-commit.fish
+  push-commit = "!fish -c 'git-push-commit $argv' --"
 
   # remotes
   remotes = remote -v
