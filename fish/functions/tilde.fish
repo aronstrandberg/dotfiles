@@ -158,6 +158,58 @@ function __tilde_install
     end
 end
 
+function __tilde_uninstall
+    set -l dotfiles_dir $argv[1]
+    set -l requested $argv[2..-1]
+    set -l i 1
+
+    while test $i -le (count $__tilde_components)
+        set -l type $__tilde_components[$i]
+        set -l source $__tilde_components[(math $i + 1)]
+        set -l name (string split / $source)[1]
+
+        # Skip if specific components requested and this isn't one
+        if test (count $requested) -gt 0
+            if not contains $name $requested
+                switch $type
+                    case symlink
+                        set i (math $i + 3)
+                    case bundle script
+                        set i (math $i + 2)
+                end
+                continue
+            end
+        end
+
+        switch $type
+            case symlink
+                set -l dest (string replace "~" $HOME $__tilde_components[(math $i + 2)])
+
+                if test -L $dest
+                    rm $dest
+                    set_color green
+                    echo "✓ Removed $dest"
+                    set_color normal
+                else if test -e $dest
+                    set_color yellow
+                    echo "⚠ $dest is not a symlink, skipping"
+                    set_color normal
+                else
+                    set_color dim
+                    echo "· $dest not installed"
+                    set_color normal
+                end
+                set i (math $i + 3)
+
+            case bundle script
+                set_color yellow
+                echo "⚠ $source is a $type, cannot uninstall automatically"
+                set_color normal
+                set i (math $i + 2)
+        end
+    end
+end
+
 function tilde --description "Dotfiles manager"
     # Get the dotfiles directory (where this script lives)
     # status dirname = fish/functions, so we need two dirname calls to reach dotfiles root
