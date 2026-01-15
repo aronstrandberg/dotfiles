@@ -30,6 +30,48 @@ function __tilde_list
     end
 end
 
+function __tilde_status
+    set -l dotfiles_dir $argv[1]
+    set -l i 1
+
+    while test $i -le (count $__tilde_components)
+        set -l type $__tilde_components[$i]
+        set -l source $__tilde_components[(math $i + 1)]
+
+        switch $type
+            case symlink
+                set -l dest (string replace "~" $HOME $__tilde_components[(math $i + 2)])
+                set -l full_source "$dotfiles_dir/$source"
+
+                if test -L $dest
+                    set -l target (readlink $dest)
+                    if test "$target" = "$full_source"
+                        set_color green
+                        printf "✓ "
+                    else
+                        set_color yellow
+                        printf "⚠ "
+                    end
+                else if test -e $dest
+                    set_color red
+                    printf "✗ "
+                else
+                    set_color red
+                    printf "✗ "
+                end
+                set_color normal
+                printf "%-15s %s\n" $source $dest
+                set i (math $i + 3)
+
+            case bundle script
+                set_color blue
+                printf "○ %-15s (run manually)\n" $source
+                set_color normal
+                set i (math $i + 2)
+        end
+    end
+end
+
 function tilde --description "Dotfiles manager"
     # Get the dotfiles directory (where this script lives)
     # status dirname = fish/functions, so we need two dirname calls to reach dotfiles root
