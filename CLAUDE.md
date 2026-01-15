@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Personal dotfiles for macOS with Fish shell and Git workflows. Install with `sh install.sh` or run individual scripts (`brew.sh`, `fish.sh`, `git.sh`, `vim.sh`).
+Personal dotfiles for macOS with Fish shell and Git workflows. Install with `zsh bootstrap.zsh` on a fresh Mac, or use `tilde install` if Fish is already set up. Run `tilde status` to check if configs are in sync.
 
 ## Patterns
 
@@ -19,7 +19,9 @@ Personal dotfiles for macOS with Fish shell and Git workflows. Install with `sh 
 - Use `--wraps <cmd>` on wrapper functions to inherit completions
 - Document complex functions with inline comments explaining fish syntax
 
-**Component-based structure**: Each tool gets its own directory containing config files and optional install scripts. Installation uses rsync to copy configs to their destinations.
+**Symlink-based config management**: The `tilde` command manages dotfiles via symlinks. Edit files in the repo; changes apply instantly. Use `tilde status` to verify all symlinks are correct.
+
+**Component-based structure**: Each tool gets its own directory containing config files and optional install scripts.
 
 ## Components
 
