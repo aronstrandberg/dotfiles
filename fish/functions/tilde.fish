@@ -210,6 +210,39 @@ function __tilde_uninstall
     end
 end
 
+function __tilde_diff
+    set -l dotfiles_dir $argv[1]
+    set -l i 1
+    set -l found_diff 0
+
+    while test $i -le (count $__tilde_components)
+        set -l type $__tilde_components[$i]
+        set -l source $__tilde_components[(math $i + 1)]
+
+        switch $type
+            case symlink
+                set -l dest (string replace "~" $HOME $__tilde_components[(math $i + 2)])
+                set -l full_source "$dotfiles_dir/$source"
+
+                # Only check if dest exists and is NOT a symlink (i.e., a copy)
+                if test -e $dest -a ! -L $dest
+                    echo "=== $source vs $dest ==="
+                    diff -u $full_source $dest
+                    set found_diff 1
+                    echo ""
+                end
+                set i (math $i + 3)
+
+            case bundle script
+                set i (math $i + 2)
+        end
+    end
+
+    if test $found_diff -eq 0
+        echo "No copied files found (all symlinks or missing)"
+    end
+end
+
 function tilde --description "Dotfiles manager"
     # Get the dotfiles directory (where this script lives)
     # status dirname = fish/functions, so we need two dirname calls to reach dotfiles root
