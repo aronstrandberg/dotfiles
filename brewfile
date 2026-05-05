@@ -47,6 +47,7 @@ brew 'fd'
 brew 'bat'
 brew 'jq'
 # brew 'jump'
+brew 'glow'
 
 # heroku
 # tap 'heroku/brew'
