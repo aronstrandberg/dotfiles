@@ -9,7 +9,9 @@ const Parameters = Type.Object({
   questions: Type.Array(
     Type.Object({
       question: Type.String({ minLength: 1 }),
-      multiple: Type.Optional(Type.Boolean({ description: "Allow multiple selections; submitting none is valid." })),
+      multiple: Type.Optional(
+        Type.Boolean({ description: "Allow multiple selections; submitting none is valid." }),
+      ),
       options: Type.Array(
         Type.Object({
           label: Type.String({ minLength: 1 }),
@@ -23,30 +25,48 @@ const Parameters = Type.Object({
 });
 
 type Question = Static<typeof Parameters>["questions"][number];
+
 type Answers = {
   status: "answered" | "cancelled" | "unavailable";
   answers: { question: string; selected: string[] }[];
 };
 
-async function ask(ctx: ExtensionContext, questions: Question[], signal?: AbortSignal): Promise<Answers> {
+async function ask(
+  ctx: ExtensionContext,
+  questions: Question[],
+  signal?: AbortSignal,
+): Promise<Answers> {
   if (ctx.mode !== "tui") return { status: "unavailable", answers: [] };
+
   if (signal?.aborted) return { status: "cancelled", answers: [] };
 
   return ctx.ui.custom<Answers>((tui, theme, _keys, done) => {
-    const choices = questions.map(() => new Set<number>());
+    const choices = questions.map((question) => ({ question, selected: new Set<number>() }));
     const search = new Input({ prompt: "Filter: " });
     let screen = 0;
     let cursor = 0;
     let filtering = false;
     let finished = false;
-    const current = () => questions[screen];
+
+    const current = () => {
+      const choice = choices[screen];
+
+      if (!choice) throw new Error("Question index is outside the dialog");
+
+      return choice;
+    };
+
     const visible = () =>
       current()
-        .options.map((option, index) => ({ ...option, index }))
+        .question.options.map((option, index) => ({ ...option, index }))
         .filter((option) =>
-          `${option.label} ${option.description ?? ""}`.toLowerCase().includes(search.getValue().toLowerCase()),
+          `${option.label} ${option.description ?? ""}`
+            .toLowerCase()
+            .includes(search.getValue().toLowerCase()),
         );
+
     const refresh = () => tui.requestRender();
+
     const finish = (status: Answers["status"]) => {
       if (finished) return;
       finished = true;
@@ -55,17 +75,19 @@ async function ask(ctx: ExtensionContext, questions: Question[], signal?: AbortS
         status,
         answers:
           status === "answered"
-            ? questions.map((question, index) => ({
+            ? choices.map(({ question, selected }) => ({
                 question: question.question,
-                selected: question.options
-                  .filter((_option, optionIndex) => choices[index].has(optionIndex))
-                  .map((option) => option.label),
+                selected: question.options.flatMap((option, optionIndex) =>
+                  selected.has(optionIndex) ? [option.label] : [],
+                ),
               }))
             : [],
       });
     };
+
     const abort = () => finish("cancelled");
     signal?.addEventListener("abort", abort, { once: true });
+
     if (signal?.aborted) abort();
 
     return {
@@ -85,15 +107,20 @@ async function ask(ctx: ExtensionContext, questions: Question[], signal?: AbortS
         const lines: string[] = [];
         const add = (text: string) => lines.push(truncateToWidth(text, Math.max(0, width), ""));
         add(theme.fg("accent", `Questions ${screen + 1}/${questions.length}`));
-        add(current().question);
-        if (filtering) lines.push(...search.render(Math.max(1, width)).map((line) => truncateToWidth(line, width, "")));
+        add(current().question.question);
+
+        if (filtering)
+          lines.push(
+            ...search.render(Math.max(1, width)).map((line) => truncateToWidth(line, width, "")),
+          );
         else if (search.getValue()) add(theme.fg("muted", `Filter: ${search.getValue()}`));
         const options = visible();
         cursor = Math.min(cursor, Math.max(0, options.length - 1));
         const start = Math.floor(cursor / 8) * 8;
+
         for (const [offset, option] of options.slice(start, start + 8).entries()) {
           const active = start + offset === cursor;
-          const picked = choices[screen].has(option.index);
+          const picked = current().selected.has(option.index);
           add(
             theme.fg(
               active ? "accent" : picked ? "success" : "text",
@@ -101,13 +128,15 @@ async function ask(ctx: ExtensionContext, questions: Question[], signal?: AbortS
             ),
           );
         }
+
         if (!options.length) add(theme.fg("muted", "No matches. Use / to change the filter."));
         const description = options[cursor]?.description;
+
         if (description) add(theme.fg("muted", description));
         add(
           theme.fg(
             "muted",
-            `${choices[screen].size} selected; showing ${options.length ? start + 1 : 0}–${Math.min(start + 8, options.length)} of ${options.length}`,
+            `${current().selected.size} selected; showing ${options.length ? start + 1 : 0}–${Math.min(start + 8, options.length)} of ${options.length}`,
           ),
         );
         add(
@@ -118,11 +147,18 @@ async function ask(ctx: ExtensionContext, questions: Question[], signal?: AbortS
               : "↑↓ move · Space toggle · / filter · Ctrl+A all · Ctrl+D clear",
           ),
         );
-        add(theme.fg("dim", `Enter ${screen === questions.length - 1 ? "submit" : "next"} · ← previous · Esc cancel`));
+        add(
+          theme.fg(
+            "dim",
+            `Enter ${screen === questions.length - 1 ? "submit" : "next"} · ← previous · Esc cancel`,
+          ),
+        );
+
         return lines;
       },
       handleInput(data: string) {
         if (finished) return;
+
         if (filtering) {
           if (matchesKey(data, Key.enter) || matchesKey(data, Key.escape)) {
             if (matchesKey(data, Key.escape)) search.setValue("");
@@ -131,13 +167,18 @@ async function ask(ctx: ExtensionContext, questions: Question[], signal?: AbortS
           } else search.handleInput(data);
           cursor = 0;
           refresh();
+
           return;
         }
+
         const options = visible();
+
         if (matchesKey(data, Key.escape)) {
           finish("cancelled");
+
           return;
         }
+
         if (data === "/") {
           filtering = true;
           search.focused = true;
@@ -145,35 +186,48 @@ async function ask(ctx: ExtensionContext, questions: Question[], signal?: AbortS
         else if (matchesKey(data, Key.down) || data === "j")
           cursor = Math.min(Math.max(0, options.length - 1), cursor + 1);
         else if (matchesKey(data, Key.pageUp)) cursor = Math.max(0, cursor - 8);
-        else if (matchesKey(data, Key.pageDown)) cursor = Math.min(Math.max(0, options.length - 1), cursor + 8);
-        else if (matchesKey(data, Key.ctrl("a")) && current().multiple)
-          options.forEach((option) => choices[screen].add(option.index));
-        else if (matchesKey(data, Key.ctrl("d"))) options.forEach((option) => choices[screen].delete(option.index));
+        else if (matchesKey(data, Key.pageDown))
+          cursor = Math.min(Math.max(0, options.length - 1), cursor + 8);
+        else if (matchesKey(data, Key.ctrl("a")) && current().question.multiple)
+          options.forEach((option) => current().selected.add(option.index));
+        else if (matchesKey(data, Key.ctrl("d")))
+          options.forEach((option) => current().selected.delete(option.index));
         else if (matchesKey(data, Key.left) && screen > 0) {
           screen--;
           cursor = 0;
           search.setValue("");
-        } else if (data === " " && options[cursor]) {
-          const index = options[cursor].index;
-          const selected = choices[screen];
-          if (selected.has(index)) selected.delete(index);
+        } else if (data === " ") {
+          const option = options[cursor];
+
+          if (!option) return;
+          const { selected, question } = current();
+
+          if (selected.has(option.index)) selected.delete(option.index);
           else {
-            if (!current().multiple) selected.clear();
-            selected.add(index);
+            if (!question.multiple) selected.clear();
+            selected.add(option.index);
           }
         } else if (matchesKey(data, Key.enter)) {
-          if (!current().multiple && choices[screen].size === 0) {
-            if (!options[cursor]) return;
-            choices[screen].add(options[cursor].index);
+          const { selected, question } = current();
+
+          if (!question.multiple && selected.size === 0) {
+            const option = options[cursor];
+
+            if (!option) return;
+            selected.add(option.index);
           }
+
           if (screen === questions.length - 1) {
             finish("answered");
+
             return;
           }
+
           screen++;
           cursor = 0;
           search.setValue("");
         }
+
         refresh();
       },
     };
@@ -190,6 +244,7 @@ export default function (pi: ExtensionAPI) {
     executionMode: "sequential",
     async execute(_id, params, signal, _update, ctx) {
       const details = await ask(ctx, params.questions, signal);
+
       return { content: [{ type: "text", text: JSON.stringify(details) }], details };
     },
     renderCall(args, theme) {
@@ -197,10 +252,13 @@ export default function (pi: ExtensionAPI) {
     },
     renderResult(result, _options, theme) {
       const details = result.details;
+
       return new Text(
         details.status === "answered"
           ? details.answers
-              .map((answer) => `${answer.question}\n${answer.selected.join(", ") || "None selected"}`)
+              .map(
+                (answer) => `${answer.question}\n${answer.selected.join(", ") || "None selected"}`,
+              )
               .join("\n\n")
           : theme.fg("muted", details.status),
         0,
@@ -210,32 +268,46 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("repo-skills", {
-    description: "Choose repo skills to keep; send the selection to the agent without changing settings",
+    description:
+      "Choose repo skills to keep; send the selection to the agent without changing settings",
     handler: async (_args, ctx) => {
       if (ctx.mode !== "tui") {
         ctx.ui.notify("/repo-skills requires TUI mode", "error");
+
         return;
       }
+
       const result = await pi.exec("git", ["rev-parse", "--show-toplevel"], { cwd: ctx.cwd });
+
       if (result.code !== 0) {
         ctx.ui.notify("Run /repo-skills inside a Git repository", "error");
+
         return;
       }
+
       const root = result.stdout.trim();
       const directory = join(root, ".agents", "skills");
+
       try {
         const folders = await readdir(directory, { withFileTypes: true });
         const options: { label: string }[] = [];
+
         for (const folder of folders) {
           if (!folder.isDirectory()) continue;
           const files = await readdir(join(directory, folder.name));
-          if (files.some((file) => file.toLowerCase() === "skill.md")) options.push({ label: folder.name });
+
+          if (files.some((file) => file.toLowerCase() === "skill.md"))
+            options.push({ label: folder.name });
         }
+
         options.sort((a, b) => a.label.localeCompare(b.label));
+
         if (!options.length) {
           ctx.ui.notify("No repo skills found", "info");
+
           return;
         }
+
         const answers = await ask(ctx, [
           {
             question:
@@ -244,12 +316,19 @@ export default function (pi: ExtensionAPI) {
             options,
           },
         ]);
+
         if (answers.status !== "answered") return;
+        const answer = answers.answers[0];
+
+        if (!answer) throw new Error("The skill dialog returned no answer");
         pi.sendUserMessage(
-          `Keep only these repo skills in ${root}: ${JSON.stringify(answers.answers[0].selected)}. Disable the other repo skills in my personal Pi configuration. Leave personal skills and shared repo files unchanged.`,
+          `Keep only these repo skills in ${root}: ${JSON.stringify(answer.selected)}. Disable the other repo skills in my personal Pi configuration. Leave personal skills and shared repo files unchanged.`,
         );
       } catch (error) {
-        ctx.ui.notify(`Cannot list repo skills: ${error instanceof Error ? error.message : String(error)}`, "error");
+        ctx.ui.notify(
+          `Cannot list repo skills: ${error instanceof Error ? error.message : String(error)}`,
+          "error",
+        );
       }
     },
   });

@@ -1,0 +1,27 @@
+{
+  "name": "aron-pi-extensions",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint extensions tests --deny-warnings",
+    "lint:fix": "oxlint extensions tests --fix --deny-warnings",
+    "format": "oxfmt extensions tests settings.json package.json tsconfig.json .oxlintrc.json .oxfmtrc.json README.md",
+    "format:check": "npm run format -- --check",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.0.4",
+    "@earendil-works/pi-tui": "1.0.4",
+    "@oxlint/plugins": "1.87.0",
+    "@types/node": "26.6.4",
+    "oxfmt": "0.72.0",
+    "oxlint": "1.87.0",
+    "typebox": "1.3.27",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}
