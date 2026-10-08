@@ -94,8 +94,12 @@ export default function (pi: ExtensionAPI) {
 
           if (name) location.push(pastel(`Session: ${name}`, "#f2b5d4"));
           const context = ctx.getContextUsage();
+          const tokens = context?.tokens;
           const percent = context?.percent;
-          const contextText = `${percent == null ? "?" : percent.toFixed(1) + "%"}/${formatTokens(context?.contextWindow ?? ctx.model?.contextWindow ?? 0)}`;
+          const contextWindow = context?.contextWindow ?? ctx.model?.contextWindow ?? 0;
+          const usedTokens = tokens == null ? "?" : Math.round(tokens).toLocaleString("en-US");
+          const percentage = percent == null ? "?" : `${Math.round(percent)}%`;
+          const contextText = `${usedTokens} / ${contextWindow.toLocaleString("en-US")} (${percentage})`;
 
           const stats = [
             pastel(`Input: ${formatTokens(input)}`, "#a8dadc"),

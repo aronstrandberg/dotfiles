@@ -4,7 +4,10 @@ import { stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import extension from "../extensions/footer-padding.ts";
 import { createTheme } from "./theme.mjs";
 
-function createFooter(entries = []) {
+function createFooter(
+  entries = [],
+  contextUsage = { tokens: 10000, percent: 10, contextWindow: 100000 },
+) {
   let start;
   let toggle;
   let factory;
@@ -26,7 +29,7 @@ function createFooter(entries = []) {
     cwd: "/project",
     model: { id: "test-model", reasoning: true, contextWindow: 100000 },
     sessionManager: { getEntries: () => entries, getSessionName: () => "example" },
-    getContextUsage: () => ({ percent: 10, contextWindow: 100000 }),
+    getContextUsage: () => contextUsage,
     ui: {
       setFooter(value) {
         factory = value;
@@ -93,7 +96,7 @@ test("new sessions keep zero-valued usage labels instead of hiding their section
     "Cache read: 0",
     "Cache write: 0",
     "Cost: $0.000",
-    "Context: 10.0%/100.0k",
+    "Context: 10,000 / 100,000 (10%)",
     "Model: test-model",
     "Thinking: high",
     "status: ready",
@@ -102,6 +105,20 @@ test("new sessions keep zero-valued usage labels instead of hiding their section
   }
 
   assert.ok(text.includes("│"));
+});
+
+test("context shows raw tokens and a rounded percentage without decimal suffixes", () => {
+  const { footer } = createFooter([], { tokens: 12345, percent: 4.5386, contextWindow: 272000 });
+  const text = footer.render(240).map(stripTerminalSequences).join("\n");
+
+  assert.ok(text.includes("Context: 12,345 / 272,000 (5%)"));
+});
+
+test("unknown context after compaction does not appear as zero usage", () => {
+  const { footer } = createFooter([], { tokens: null, percent: null, contextWindow: 272000 });
+  const text = footer.render(240).map(stripTerminalSequences).join("\n");
+
+  assert.ok(text.includes("Context: ? / 272,000 (?)"));
 });
 
 test("assistant usage updates token and cost totals rather than remaining at zero", () => {
