@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
+import { getOsc8LinkAtColumn, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import extension from "../extensions/footer-padding.ts";
 import { createTheme } from "./theme.mjs";
 
@@ -96,7 +96,7 @@ test("new sessions keep zero-valued usage labels instead of hiding their section
     "Cache read: 0",
     "Cache write: 0",
     "Cost: $0.000",
-    "Context: 10,000 / 100,000 (10%)",
+    "Context: 10k / 100k (10%)",
     "Model: test-model",
     "Thinking: high",
     "status: ready",
@@ -107,18 +107,25 @@ test("new sessions keep zero-valued usage labels instead of hiding their section
   assert.ok(text.includes("│"));
 });
 
-test("context shows raw tokens and a rounded percentage without decimal suffixes", () => {
+test("context rounds token counts to thousands and percentages to whole numbers", () => {
   const { footer } = createFooter([], { tokens: 12345, percent: 4.5386, contextWindow: 272000 });
   const text = footer.render(240).map(stripTerminalSequences).join("\n");
 
-  assert.ok(text.includes("Context: 12,345 / 272,000 (5%)"));
+  assert.ok(text.includes("Context: 12k / 272k (5%)"));
+});
+
+test("context rounds up rather than truncating token counts", () => {
+  const { footer } = createFooter([], { tokens: 197600, percent: 72.65, contextWindow: 272000 });
+  const text = footer.render(240).map(stripTerminalSequences).join("\n");
+
+  assert.ok(text.includes("Context: 198k / 272k (73%)"));
 });
 
 test("unknown context after compaction does not appear as zero usage", () => {
   const { footer } = createFooter([], { tokens: null, percent: null, contextWindow: 272000 });
   const text = footer.render(240).map(stripTerminalSequences).join("\n");
 
-  assert.ok(text.includes("Context: ? / 272,000 (?)"));
+  assert.ok(text.includes("Context: ? / 272k (?)"));
 });
 
 test("assistant usage updates token and cost totals rather than remaining at zero", () => {
@@ -127,6 +134,7 @@ test("assistant usage updates token and cost totals rather than remaining at zer
       type: "message",
       message: {
         role: "assistant",
+        content: [],
         usage: {
           input: 1200,
           output: 200,
@@ -148,6 +156,60 @@ test("assistant usage updates token and cost totals rather than remaining at zer
     "Cost: $0.125",
   ])
     assert.ok(text.includes(label));
+});
+
+test("session PRs become clickable links without duplicating repeated references", () => {
+  const { footer } = createFooter([
+    {
+      type: "message",
+      message: { role: "user", content: "Review https://github.com/owner/repo/pull/123/files" },
+    },
+    {
+      type: "message",
+      message: {
+        role: "toolResult",
+        content: [
+          {
+            type: "text",
+            text: "https://github.com/owner/repo/pull/123\nhttps://github.com/owner/other/pull/456",
+          },
+        ],
+      },
+    },
+    { type: "custom_message", content: "Again: https://github.com/OWNER/REPO/pull/123?tab=files" },
+  ]);
+
+  const lines = footer.render(240);
+  const text = lines.map(stripTerminalSequences).join("\n");
+
+  assert.equal(text.split("PR: owner/repo#123").length - 1, 1);
+  assert.ok(text.includes("PR: owner/other#456"));
+
+  for (const [label, url] of [
+    ["PR: owner/repo#123", "https://github.com/owner/repo/pull/123"],
+    ["PR: owner/other#456", "https://github.com/owner/other/pull/456"],
+  ]) {
+    const line = lines.find((value) => stripTerminalSequences(value).includes(label));
+    assert.ok(line);
+    const column = stripTerminalSequences(line).indexOf(label);
+    assert.equal(getOsc8LinkAtColumn(line, column), url);
+  }
+});
+
+test("sessions without PR URLs do not show issue links or invent a pull request", () => {
+  const { footer } = createFooter([
+    {
+      type: "message",
+      message: {
+        role: "user",
+        content: "https://github.com/owner/repo/issues/123 https://example.com/owner/repo/pull/456",
+      },
+    },
+  ]);
+
+  const text = footer.render(240).map(stripTerminalSequences).join("\n");
+
+  assert.equal(text.includes("PR:"), false);
 });
 
 test("footer toggling restores the built-in footer and disposal removes branch notifications", async () => {

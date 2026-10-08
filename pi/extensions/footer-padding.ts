@@ -1,6 +1,7 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 
 import {
+  hyperlink,
   parseColor,
   truncateToWidth,
   visibleWidth,
@@ -14,6 +15,46 @@ const formatTokens = (count: number) =>
     : count < 1000000
       ? `${(count / 1000).toFixed(1)}k`
       : `${(count / 1000000).toFixed(1)}M`;
+
+function sessionPullRequests(entries: readonly SessionEntry[]) {
+  const requests = new Map<string, { url: string; label: string }>();
+
+  for (const entry of entries) {
+    const content =
+      entry.type === "message"
+        ? "content" in entry.message
+          ? entry.message.content
+          : "output" in entry.message
+            ? entry.message.output
+            : entry.message.summary
+        : entry.type === "custom_message"
+          ? entry.content
+          : entry.type === "compaction" || entry.type === "branch_summary"
+            ? entry.summary
+            : "";
+
+    const texts = Array.isArray(content)
+      ? content.flatMap((block) => (block.type === "text" ? [block.text] : []))
+      : [content];
+
+    for (const text of texts) {
+      for (const match of text.matchAll(
+        /https:\/\/github\.com\/([a-z\d-]+)\/([a-z\d_.-]+)\/pull\/([1-9]\d*)\b/gi,
+      )) {
+        const [, owner, repository, number] = match;
+
+        if (!owner || !repository || !number) continue;
+        const url = `https://github.com/${owner}/${repository}/pull/${number}`;
+        const key = url.toLowerCase();
+
+        if (!requests.has(key))
+          requests.set(key, { url, label: `${owner}/${repository}#${number}` });
+      }
+    }
+  }
+
+  return [...requests.values()];
+}
 
 export default function (pi: ExtensionAPI) {
   let enabled = true;
@@ -52,7 +93,9 @@ export default function (pi: ExtensionAPI) {
           let cacheWrite = 0;
           let cost = 0;
 
-          for (const entry of ctx.sessionManager.getEntries()) {
+          const entries = ctx.sessionManager.getEntries();
+
+          for (const entry of entries) {
             const usage =
               entry.type === "message"
                 ? entry.message.role === "assistant" || entry.message.role === "toolResult"
@@ -93,13 +136,18 @@ export default function (pi: ExtensionAPI) {
           const name = ctx.sessionManager.getSessionName();
 
           if (name) location.push(pastel(`Session: ${name}`, "#f2b5d4"));
+
+          for (const request of sessionPullRequests(entries)) {
+            location.push(pastel(hyperlink(`PR: ${request.label}`, request.url), "#c5b4e3"));
+          }
+
           const context = ctx.getContextUsage();
           const tokens = context?.tokens;
           const percent = context?.percent;
           const contextWindow = context?.contextWindow ?? ctx.model?.contextWindow ?? 0;
-          const usedTokens = tokens == null ? "?" : Math.round(tokens).toLocaleString("en-US");
+          const usedTokens = tokens == null ? "?" : `${Math.round(tokens / 1000)}k`;
           const percentage = percent == null ? "?" : `${Math.round(percent)}%`;
-          const contextText = `${usedTokens} / ${contextWindow.toLocaleString("en-US")} (${percentage})`;
+          const contextText = `${usedTokens} / ${Math.round(contextWindow / 1000)}k (${percentage})`;
 
           const stats = [
             pastel(`Input: ${formatTokens(input)}`, "#a8dadc"),
