@@ -59,9 +59,10 @@ function sublime
   end
 end
 
-# vim
-function v
-  vim $argv
+# neovim
+alias vim='nvim'
+function v --wraps nvim
+  nvim $argv
 end
 
 # ssh and sftp to kth servers

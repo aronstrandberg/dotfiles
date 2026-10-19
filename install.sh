@@ -12,3 +12,6 @@ sh ruby.sh
 
 # setup git
 sh git.sh
+
+# setup vim/neovim
+sh vim.sh

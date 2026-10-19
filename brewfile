@@ -44,6 +44,7 @@ brew 'fish'
 
 # vim
 brew 'neovim'
+brew 'tree-sitter'
 
 # terminal stuff
 brew 'fzf'
