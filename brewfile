@@ -22,6 +22,10 @@ brew 'gist'
 brew 'git-lfs'
 # brew 'diff-so-fancy'
 brew 'difftastic'
+brew 'sapling'
+
+tap 'withgraphite/tap'
+brew 'withgraphite/tap/graphite'
 
 # programming languages
 brew 'go'
