@@ -22,6 +22,7 @@ test("repeated installs outside the repo preserve credentials, local preferences
     );
     await writeFile(join(agent, "auth.json"), "private");
     await writeFile(join(agent, "extensions/herdr-agent-state.ts"), "managed");
+    await writeFile(join(agent, "extensions/footer-padding.ts"), "obsolete");
 
     for (let count = 0; count < 2; count++)
       execFileSync("sh", [installer], { cwd: tmpdir(), env: { ...process.env, HOME: home } });
@@ -35,7 +36,9 @@ test("repeated installs outside the repo preserve credentials, local preferences
     assert.equal(await readFile(join(agent, "auth.json"), "utf8"), "private");
     assert.equal(await readFile(join(agent, "extensions/herdr-agent-state.ts"), "utf8"), "managed");
 
-    for (const name of ["footer-padding.ts", "ask-questions.ts"])
+    await assert.rejects(readFile(join(agent, "extensions/footer-padding.ts")), { code: "ENOENT" });
+
+    for (const name of ["footer.ts", "ask-questions.ts"])
       assert.equal(
         await readFile(join(agent, "extensions", name), "utf8"),
         await readFile(join(extensionSource, name), "utf8"),

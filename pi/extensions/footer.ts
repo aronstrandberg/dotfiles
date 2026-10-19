@@ -191,8 +191,8 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.on("session_start", (_event, ctx) => apply(ctx));
-  pi.registerCommand("footer-padding", {
-    description: "Toggle the footer's one-column side padding",
+  pi.registerCommand("footer", {
+    description: "Toggle the custom footer",
     handler: async (_args, ctx) => {
       enabled = !enabled;
       apply(ctx);

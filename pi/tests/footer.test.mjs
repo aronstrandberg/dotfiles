@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { getOsc8LinkAtColumn, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
-import extension from "../extensions/footer-padding.ts";
+import extension from "../extensions/footer.ts";
 import { createTheme } from "./theme.mjs";
 
 function createFooter(
@@ -18,7 +18,8 @@ function createFooter(
     on(name, handler) {
       if (name === "session_start") start = handler;
     },
-    registerCommand(_name, command) {
+    registerCommand(name, command) {
+      assert.equal(name, "footer");
       toggle = command.handler;
     },
     getThinkingLevel: () => "high",

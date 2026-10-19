@@ -19,4 +19,5 @@ const local = existsSync(destination) ? JSON.parse(readFileSync(destination, "ut
 writeFileSync(destination, JSON.stringify({ ...local, ...defaults }, null, 2) + "\n", { mode: 0o600 });
 JS
 rsync -a "$source_dir/extensions/" "$agent_dir/extensions/"
+rm -f "$agent_dir/extensions/footer-padding.ts"
 printf '%s\n' 'Pi settings and extensions installed. Run /reload in Pi to load extensions; model defaults apply to new sessions.'
