@@ -1,5 +1,10 @@
-# add homebrew packages directory to path
-fish_add_path /opt/homebrew/bin
+# PATH is session-scoped, not universal fish_user_paths, and left in place under an
+# inherited direnv environment so its tools stay ahead of Homebrew's.
+if set -q DIRENV_DIR
+  fish_add_path --global --path ~/.bun/bin /opt/homebrew/bin ~/.local/bin
+else
+  fish_add_path --global --path --move ~/.bun/bin /opt/homebrew/bin ~/.local/bin
+end
 
 # Remove annoying welcome message
 set fish_greeting ""
