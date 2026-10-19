@@ -83,6 +83,8 @@ cask 'claude'
 cask 'codex'
 cask 'codex-app'
 
+cask 'cursor-cli'
+cask 'cursor'
 
 # applications
 cask '1password'
