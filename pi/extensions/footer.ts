@@ -8,6 +8,121 @@ import {
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
 import { homedir } from "node:os";
+import { Type, type Static } from "typebox";
+import { Value } from "typebox/value";
+
+const PullRequestBranches = Type.Object({
+  baseRefName: Type.String({ minLength: 1 }),
+  headRefName: Type.String({ minLength: 1 }),
+  isCrossRepository: Type.Boolean(),
+});
+
+type PullRequestBranches = Static<typeof PullRequestBranches>;
+
+type PullRequest = { url: string; label: string; repository: string; number: string };
+
+function githubRepository(remote: string): string | undefined {
+  const match =
+    /^(?:https?:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([a-z\d-]+)\/([a-z\d_.-]+)\/?$/i.exec(
+      remote.trim(),
+    );
+
+  const owner = match?.[1];
+  const repository = match?.[2]?.replace(/\.git$/i, "");
+
+  return owner && repository ? `${owner}/${repository}`.toLowerCase() : undefined;
+}
+
+function parsePullRequestBranches(output: string): PullRequestBranches | undefined {
+  let value: unknown;
+
+  try {
+    value = JSON.parse(output);
+  } catch (error) {
+    if (error instanceof SyntaxError) return undefined;
+    throw error;
+  }
+
+  if (!Value.Check(PullRequestBranches, value)) return undefined;
+
+  return {
+    baseRefName: value.baseRefName,
+    headRefName: value.headRefName,
+    isCrossRepository: value.isCrossRepository,
+  };
+}
+
+function pullRequestStacks(
+  requests: readonly PullRequest[],
+  branches: ReadonlyMap<string, PullRequestBranches>,
+): PullRequest[][] {
+  const parents = new Map<PullRequest, PullRequest>();
+  const children = new Map<PullRequest, PullRequest[]>();
+
+  for (const request of requests) {
+    const base = branches.get(request.url)?.baseRefName;
+
+    if (!base) continue;
+
+    const candidates = requests.filter((candidate) => {
+      const head = branches.get(candidate.url);
+
+      return (
+        candidate !== request &&
+        candidate.repository === request.repository &&
+        head?.isCrossRepository === false &&
+        head.headRefName === base
+      );
+    });
+
+    const parent = candidates.length === 1 ? candidates[0] : undefined;
+
+    if (!parent) continue;
+    parents.set(request, parent);
+    const siblings = children.get(parent) ?? [];
+    siblings.push(request);
+    children.set(parent, siblings);
+  }
+
+  const stacks: PullRequest[][] = [];
+  const emitted = new Set<PullRequest>();
+
+  for (const request of requests) {
+    if (emitted.has(request)) continue;
+    let root = request;
+    const ancestors = new Set<PullRequest>();
+
+    while (true) {
+      const parent = parents.get(root);
+
+      if (!parent || children.get(parent)?.length !== 1) break;
+      ancestors.add(root);
+      root = parent;
+
+      if (ancestors.has(root)) break;
+    }
+
+    if (ancestors.has(root)) {
+      stacks.push([request]);
+      emitted.add(request);
+      continue;
+    }
+
+    const stack: PullRequest[] = [];
+    let current: PullRequest | undefined = root;
+
+    while (current && !emitted.has(current)) {
+      stack.push(current);
+      emitted.add(current);
+      const next = children.get(current);
+      current = next?.length === 1 ? next[0] : undefined;
+    }
+
+    stacks.push(stack);
+  }
+
+  return stacks;
+}
 
 const formatTokens = (count: number) =>
   count < 1000
@@ -17,9 +132,16 @@ const formatTokens = (count: number) =>
       : `${(count / 1000000).toFixed(1)}M`;
 
 function sessionPullRequests(entries: readonly SessionEntry[]) {
-  const requests = new Map<string, { url: string; label: string }>();
+  const requests = new Map<string, PullRequest>();
 
   for (const entry of entries) {
+    if (
+      entry.type === "message" &&
+      entry.message.role === "toolResult" &&
+      entry.message.toolName === "read"
+    )
+      continue;
+
     const content =
       entry.type === "message"
         ? "content" in entry.message
@@ -48,7 +170,12 @@ function sessionPullRequests(entries: readonly SessionEntry[]) {
         const key = url.toLowerCase();
 
         if (!requests.has(key))
-          requests.set(key, { url, label: `${owner}/${repository}#${number}` });
+          requests.set(key, {
+            url,
+            label: `${owner}/${repository}#${number}`,
+            repository: `${owner}/${repository}`.toLowerCase(),
+            number,
+          });
       }
     }
   }
@@ -58,6 +185,57 @@ function sessionPullRequests(entries: readonly SessionEntry[]) {
 
 export default function (pi: ExtensionAPI) {
   let enabled = true;
+  let branches = new Map<string, PullRequestBranches>();
+  let repository: string | undefined;
+  let lookupController: AbortController | undefined;
+  let requestRender: (() => void) | undefined;
+
+  async function refreshPullRequests(ctx: ExtensionContext) {
+    lookupController?.abort();
+
+    if (ctx.mode !== "tui" || !enabled) return;
+    lookupController = new AbortController();
+
+    const signal = ctx.signal
+      ? AbortSignal.any([lookupController.signal, ctx.signal])
+      : lookupController.signal;
+
+    const remote = await pi.exec("git", ["remote", "get-url", "origin"], {
+      cwd: ctx.cwd,
+      timeout: 1000,
+      signal,
+    });
+
+    if (signal.aborted) return;
+
+    const localRepository =
+      remote.code === 0 && !remote.killed ? githubRepository(remote.stdout) : undefined;
+
+    const requests = sessionPullRequests(ctx.sessionManager.getEntries());
+    const updated = new Map<string, PullRequestBranches>();
+
+    for (let offset = 0; offset < requests.length && !signal.aborted; offset += 4) {
+      await Promise.all(
+        requests.slice(offset, offset + 4).map(async (request) => {
+          const result = await pi.exec(
+            "gh",
+            ["pr", "view", request.url, "--json", "baseRefName,headRefName,isCrossRepository"],
+            { cwd: ctx.cwd, timeout: 5000, signal },
+          );
+
+          if (result.code !== 0 || result.killed) return;
+          const metadata = parsePullRequestBranches(result.stdout);
+
+          if (metadata) updated.set(request.url, metadata);
+        }),
+      );
+    }
+
+    if (signal.aborted) return;
+    branches = updated;
+    repository = localRepository;
+    requestRender?.();
+  }
 
   function apply(ctx: ExtensionContext) {
     if (ctx.mode !== "tui") return;
@@ -69,10 +247,16 @@ export default function (pi: ExtensionAPI) {
     }
 
     ctx.ui.setFooter((tui, theme, footerData) => {
-      const unsubscribe = footerData.onBranchChange(() => tui.requestRender());
+      const render = () => tui.requestRender();
+      requestRender = render;
+      const unsubscribe = footerData.onBranchChange(render);
 
       return {
-        dispose: unsubscribe,
+        dispose() {
+          unsubscribe();
+
+          if (requestRender === render) requestRender = undefined;
+        },
         invalidate() {},
         render(width: number): string[] {
           const inset = Math.min(1, Math.max(0, Math.floor((width - 1) / 2)));
@@ -136,10 +320,23 @@ export default function (pi: ExtensionAPI) {
           const name = ctx.sessionManager.getSessionName();
 
           if (name) location.push(pastel(`Session: ${name}`, "#f2b5d4"));
+          location.push(pastel(`Session ID: ${ctx.sessionManager.getSessionId()}`, "#f2b5d4"));
 
-          for (const request of sessionPullRequests(entries)) {
-            location.push(pastel(hyperlink(`PR: ${request.label}`, request.url), "#c5b4e3"));
-          }
+          const pullRequests = pullRequestStacks(sessionPullRequests(entries), branches)
+            .map((stack) =>
+              stack
+                .map((request) =>
+                  theme.style(
+                    hyperlink(
+                      request.repository === repository ? `#${request.number}` : request.label,
+                      request.url,
+                    ),
+                    { fg: parseColor("#c5b4e3"), underline: true },
+                  ),
+                )
+                .join(theme.fg("dim", " ← ")),
+            )
+            .join(separator);
 
           const context = ctx.getContextUsage();
           const tokens = context?.tokens;
@@ -171,7 +368,11 @@ export default function (pi: ExtensionAPI) {
 
           const statsLine = stats + (gap > 0 ? " ".repeat(gap) : "") + separator + model;
 
-          const lines = [location.join(separator), statsLine]
+          const lines = [
+            location.join(separator),
+            ...(pullRequests ? [pullRequests] : []),
+            statsLine,
+          ]
             .flatMap((line) => wrapTextWithAnsi(line, Math.max(1, innerWidth)))
             .map(pad);
 
@@ -190,12 +391,23 @@ export default function (pi: ExtensionAPI) {
     });
   }
 
-  pi.on("session_start", (_event, ctx) => apply(ctx));
+  pi.on("session_start", async (_event, ctx) => {
+    branches = new Map();
+    repository = undefined;
+    apply(ctx);
+    await refreshPullRequests(ctx);
+  });
+  pi.on("agent_end", (_event, ctx) => refreshPullRequests(ctx));
+  pi.on("session_shutdown", () => {
+    lookupController?.abort();
+    requestRender = undefined;
+  });
   pi.registerCommand("footer", {
     description: "Toggle the custom footer",
     handler: async (_args, ctx) => {
       enabled = !enabled;
       apply(ctx);
+      await refreshPullRequests(ctx);
     },
   });
 }
