@@ -47,6 +47,7 @@ brew 'neovim'
 brew 'tree-sitter'
 
 # terminal stuff
+brew 'duti'
 brew 'fzf'
 brew 'fd'
 brew 'bat'

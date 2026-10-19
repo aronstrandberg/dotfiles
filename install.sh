@@ -4,6 +4,9 @@ sh macos.sh
 # setup homebrew
 sh brew.sh
 
+# set zed as default editor for code files
+sh editor.sh
+
 # setup fish
 sh fish.sh
 
