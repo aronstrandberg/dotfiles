@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsxImportSource": "@opentui/solid",
+    "lib": ["ESNext"]
+  },
+  "include": ["src/tui.tsx", "src/tui/**/*.tsx", "src/tui/**/*.ts"],
+  "exclude": []
+}

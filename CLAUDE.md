@@ -27,5 +27,6 @@ Personal dotfiles for macOS with Fish shell and Git workflows. Install with `sh 
 - `git/` - Git config with aliases, signing setup (1Password/SSH), and difftool config (difft). Uses hub as git wrapper.
 - `vim/` - Minimal vimrc for basic editing.
 - `bat/` - Config for bat (cat replacement with syntax highlighting).
+- `opencode/` - OpenCode plugins. `opencode.sh` copies each one to `~/.config/opencode/plugins/`. `plugins/gh-prs` reviews the GitHub PRs a session mentions (desktop, web and TUI); its desktop bundle in `dist/` is committed, so rebuild it after changing `src/gui*`.
 - `brewfile` - Declarative package list for Homebrew.
 - `macos.sh` - System preferences and defaults for macOS.
