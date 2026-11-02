@@ -14,6 +14,10 @@ $env.config = {
   use_ansi_coloring: true
 }
 
+# `clip copy` writes through OSC 52, so it also reaches the local clipboard over SSH and Rex
+use std/clip
+alias pbcopy = clip copy
+
 # Aliases
 alias ll = ls -la
 alias l = ls
