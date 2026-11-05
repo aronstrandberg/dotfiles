@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs"
 import { Plugin } from "@opencode/plugin"
 import * as GitHub from "./github.ts"
+import { addPrCardInstruction, parsePrCardPayload, resolvePrCard } from "./pr-card.ts"
 import { GhPrs, type PrAction, type PrRef, type PrSummary } from "./rpc.ts"
 import { findPrUrls, prKey } from "./shared.ts"
 
@@ -46,6 +47,18 @@ export default Plugin.define({
       return { owner, repo, number }
     }
 
+    const resolveInput = (input: unknown): { reference: string; directory?: string } => {
+      if (typeof input !== "object" || input === null) throw new GitHub.GhError("Invalid pull request card request")
+      const reference = Reflect.get(input, "reference")
+      const directory = Reflect.get(input, "directory")
+      if (typeof reference !== "string" || (directory !== undefined && typeof directory !== "string")) {
+        throw new GitHub.GhError("Invalid pull request card request")
+      }
+      return directory === undefined ? { reference } : { reference, directory }
+    }
+
+    await ctx.session.hook("context", (event) => addPrCardInstruction(event.system))
+
     await ctx.rpc.register(GhPrs, {
       mentioned: async (input, call) => {
         const { sessionID, directory, fresh } = input as { sessionID: string; directory?: string; fresh?: boolean }
@@ -77,6 +90,26 @@ export default Plugin.define({
           cache.set(prKey(ref), { at: Date.now(), summary: result })
           return json(result)
         } catch (error) {
+          return call.error("gh", message(error), { message: message(error) })
+        }
+      },
+      resolve: async (input, call) => {
+        try {
+          const request = resolveInput(input)
+          const mention = parsePrCardPayload(request.reference)
+          if (!mention) throw new GitHub.GhError("Invalid pull request card reference")
+          const summary = await resolvePrCard(
+            mention,
+            request.directory,
+            {
+              repository: (directory, signal) => GitHub.repository(directory, { gh, signal }),
+              summary: (ref, signal) => GitHub.summary(ref, { gh, signal }),
+            },
+            call.signal,
+          )
+          return summary ? json(summary) : null
+        } catch (error) {
+          if (call.signal.aborted) throw error
           return call.error("gh", message(error), { message: message(error) })
         }
       },

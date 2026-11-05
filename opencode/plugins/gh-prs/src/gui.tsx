@@ -1,6 +1,7 @@
 import { onCleanup } from "solid-js"
 import {
   Command,
+  CodeBlock,
   ComposerPill,
   createKeyed,
   LinkHandler,
@@ -10,7 +11,9 @@ import {
   Style,
   type PanelTab,
 } from "@opencode/plugin/gui"
+import { parsePrCardPayload } from "./pr-card.ts"
 import { parsePrUrl, prKey } from "./shared.ts"
+import { PrCardBlock } from "./gui/card-view.tsx"
 import { definition } from "./gui/definition.ts"
 import { createApp, LIST_TAB, pageFromUrl, parsePrTab, type Ctx } from "./gui/state.ts"
 import { css } from "./gui/styles.ts"
@@ -186,6 +189,16 @@ function setup(ctx: Ctx) {
     },
   })
 
+  if (ctx.app.platform === "desktop" && CodeBlock !== undefined) {
+    ctx.add(CodeBlock, {
+      languages: ["gh-pr"],
+      render: (props) => {
+        if (!props.session || !parsePrCardPayload(props.code)) return undefined
+        return <PrCardBlock app={app} block={props} />
+      },
+    })
+  }
+
   // Clicking a PR link in the timeline opens it here instead of a browser.
   ctx.add(LinkHandler, {
     priority: 100,
@@ -201,4 +214,3 @@ function setup(ctx: Ctx) {
 }
 
 export default Plugin.define({ ...definition, setup })
-

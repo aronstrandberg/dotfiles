@@ -139,6 +139,16 @@ export const GhPrs = Rpc.define({
       output: any,
       errors,
     },
+    resolve: {
+      input: {
+        type: "object",
+        properties: { reference: { type: "string" }, directory: { type: "string" } },
+        required: ["reference"],
+        additionalProperties: false,
+      },
+      output: any,
+      errors,
+    },
     files: {
       input: { type: "object", properties: ref, required: ["owner", "repo", "number"] },
       output: any,
@@ -159,10 +169,15 @@ export const GhPrs = Rpc.define({
 
 /** Typed calls over an OpenCode client's subclient for {@link GhPrs}. */
 export function api(client: { rpc(definition: typeof GhPrs): unknown }) {
-  const rpc = client.rpc(GhPrs) as Record<keyof typeof GhPrs.methods, (input: unknown) => Promise<unknown>>
+  const rpc = client.rpc(GhPrs) as Record<
+    keyof typeof GhPrs.methods,
+    (input: unknown, options?: { readonly signal?: AbortSignal }) => Promise<unknown>
+  >
   return {
     mentioned: (input: { sessionID: string; directory?: string; fresh?: boolean }) =>
       rpc.mentioned(input) as Promise<{ prs: PrSummary[]; error?: string }>,
+    resolve: (input: { reference: string; directory?: string }, signal?: AbortSignal) =>
+      rpc.resolve(input, { signal }) as Promise<PrSummary | null>,
     detail: (input: PrRef) => rpc.detail(pick(input)) as Promise<PrDetail>,
     files: (input: PrRef) => rpc.files(pick(input)) as Promise<{ files: PrFile[]; truncated: boolean }>,
     act: (input: PrRef, action: PrAction) => rpc.act({ ...pick(input), action }) as Promise<{ message: string }>,

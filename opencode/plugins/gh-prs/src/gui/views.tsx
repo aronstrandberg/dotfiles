@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, Show, Switch, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, Show, Switch } from "solid-js"
 import { createLatest, usePanel, type MountedSession, type SessionScreen, type UiMenuEntry } from "@opencode/plugin/gui"
 import { Browser } from "@opencode/plugin/gui/browser"
 import type { Check, IssueComment, PrAction, PrDetail, PrFile, PrRef, PrSummary, Review, ReviewThread } from "../rpc.ts"
@@ -16,6 +16,7 @@ import {
 } from "../shared.ts"
 import { mergeChoices, type MergeChoice } from "../merge.ts"
 import { errorText, type App, type Page } from "./state.ts"
+import { prSections } from "./sections.ts"
 
 const POLL_MS = 30_000
 
@@ -26,9 +27,11 @@ function openUrl(app: App, session: MountedSession, url: string) {
   else app.ctx.system.openExternal(url)
 }
 
-function StatePill(props: { pr: Pick<PrSummary, "state" | "isDraft" | "isInMergeQueue"> }) {
+function StateLabel(props: { app: App; pr: Pick<PrSummary, "state" | "isDraft" | "isInMergeQueue"> }) {
+  const ui = props.app.ctx.ui
   return (
     <span class="ghp-state" data-state={stateLabel(props.pr)}>
+      <ui.Icon name={props.pr.state === "MERGED" ? "check" : props.pr.state === "CLOSED" ? "circle-x" : "branch"} size="small" />
       {stateLabel(props.pr)}
     </span>
   )
@@ -99,7 +102,7 @@ export function ListView(props: { app: App; session: MountedSession }) {
               <div class="ghp-item" onClick={() => props.app.openPr(props.session, pr)}>
                 <span class="ghp-dot" data-checks={pr.checks} title={`Checks: ${pr.checks}`} />
                 <div class="ghp-item-title ghp-ellipsis">{pr.title}</div>
-                <StatePill pr={pr} />
+                <StateLabel app={props.app} pr={pr} />
                 <div class="ghp-item-meta">
                   <span class="ghp-mono">
                     {pr.repo}#{pr.number}
@@ -243,10 +246,7 @@ function Header(props: {
   const ctx = props.app.ctx
   const ui = ctx.ui
   const choices = createMemo(() => mergeChoices(props.pr))
-  const counts = createMemo(() => checkCounts(props.pr.checkList))
-  const conversation = createMemo(
-    () => props.pr.comments.length + props.pr.threads.length + props.pr.reviews.filter((review) => review.body.trim()).length,
-  )
+  const sections = createMemo(() => prSections(props.pr))
 
   async function choose(choice: MergeChoice) {
     if (choice.confirm) {
@@ -287,26 +287,23 @@ function Header(props: {
     return "ghp-tone-pending"
   }
 
-  const tab = (id: Page, label: string, count?: () => JSX.Element) => (
-    <button class="ghp-tab" data-active={props.page === id ? "" : undefined} onClick={() => props.setPage(id)}>
-      {label}
-      {count?.()}
-    </button>
-  )
-
   return (
     <div class="ghp-head">
-      <div class="ghp-title">
+      <h2 class="ghp-title">
         {props.pr.title} <span class="ghp-num">#{props.pr.number}</span>
-      </div>
+      </h2>
       <div class="ghp-meta">
-        <StatePill pr={props.pr} />
+        <StateLabel app={props.app} pr={props.pr} />
         <span>{props.pr.author}</span>
-        <span class="ghp-branch" title={props.pr.headRefName}>
-          {props.pr.headRefName}
+        <span class="ghp-branches">
+          <ui.Tooltip value={props.pr.headRefName}>
+            <span class="ghp-branch">{props.pr.headRefName}</span>
+          </ui.Tooltip>
+          <ui.Icon name="arrow-right" size="small" />
+          <ui.Tooltip value={props.pr.baseRefName}>
+            <span class="ghp-branch">{props.pr.baseRefName}</span>
+          </ui.Tooltip>
         </span>
-        <span>→</span>
-        <span class="ghp-branch">{props.pr.baseRefName}</span>
         <Diffstat additions={props.pr.additions} deletions={props.pr.deletions} />
         <span class="ghp-hide-narrow">· {relativeTime(props.pr.updatedAt)}</span>
       </div>
@@ -358,16 +355,20 @@ function Header(props: {
           ]}
         />
       </div>
-      <div class="ghp-tabs" role="tablist">
-        {tab("overview", "Overview")}
-        {tab("checks", "Checks", () => (
-          <span class="ghp-count" data-tone={counts().failure > 0 ? "failure" : undefined}>
-            {counts().failure > 0 ? `${counts().failure} failing` : counts().pending > 0 ? `${counts().pending} running` : props.pr.checkList.length}
-          </span>
-        ))}
-        {tab("comments", "Comments", () => <span class="ghp-count">{conversation()}</span>)}
-        {tab("files", "Files", () => <span class="ghp-count">{props.pr.changedFiles}</span>)}
-      </div>
+      <nav class="ghp-sections" aria-label="Pull request sections">
+        <For each={sections()}>
+          {(section) => (
+            <span aria-current={props.page === section.id ? "page" : undefined}>
+              <ui.Button size="small" variant={props.page === section.id ? "neutral" : "ghost-muted"} onClick={() => props.setPage(section.id)}>
+                {section.label}{" "}
+                <Show when={section.detail}>
+                  <span class="ghp-section-count" data-tone={section.tone}>{section.detail}</span>
+                </Show>
+              </ui.Button>
+            </span>
+          )}
+        </For>
+      </nav>
     </div>
   )
 }
@@ -390,12 +391,14 @@ function Overview(props: { app: App; pr: PrDetail }) {
           <dd>
             <For each={reviewers()}>
               {([name, state]) => (
-                <span class="ghp-chip" title={state}>
-                  <span class="ghp-review-state" data-state={state}>
-                    {state === "APPROVED" ? "✓ " : state === "CHANGES_REQUESTED" ? "✕ " : state === "REQUESTED" ? "○ " : "• "}
+                <ui.Tooltip value={state === "REQUESTED" ? "Review requested" : state.toLowerCase().replaceAll("_", " ")}>
+                  <span class="ghp-chip">
+                    <span class="ghp-review-state" data-state={state}>
+                      <ui.Icon name={state === "APPROVED" ? "check-small" : state === "CHANGES_REQUESTED" ? "circle-x" : "status-active"} size="small" />
+                    </span>
+                    {name}
                   </span>
-                  {name}
-                </span>
+                </ui.Tooltip>
               )}
             </For>
           </dd>
@@ -405,7 +408,7 @@ function Overview(props: { app: App; pr: PrDetail }) {
           <dd>
             <For each={props.pr.labels}>
               {(label) => (
-                <span class="ghp-chip" style={{ "border-color": `#${label.color}` }}>
+                <span class="ghp-chip">
                   {label.name}
                 </span>
               )}
@@ -504,12 +507,12 @@ function Checks(props: { app: App; session: MountedSession; screen: SessionScree
           <For each={groups()}>
             {(group) => (
               <>
-                <button class="ghp-group-head" onClick={() => setToggled({ ...toggled(), [group.id]: !isOpen(group) })}>
-                  <span class="ghp-chevron" data-open={isOpen(group) ? "" : undefined}>
-                    <ui.Icon name="chevron-right" size="small" />
-                  </span>
-                  {group.title} ({group.items.length})
-                </button>
+                <div class="ghp-group-head">
+                  <ui.Button variant="ghost-muted" size="small" icon={isOpen(group) ? "chevron-down" : "chevron-right"} onClick={() => setToggled({ ...toggled(), [group.id]: !isOpen(group) })}>
+                    {group.title} <span class="ghp-section-count">{group.items.length}</span>
+                    <span class="ghp-sr-only"> {isOpen(group) ? "Collapse" : "Expand"}</span>
+                  </ui.Button>
+                </div>
                 <Show when={isOpen(group)}>
                   <For each={group.items}>
                     {(check) => (

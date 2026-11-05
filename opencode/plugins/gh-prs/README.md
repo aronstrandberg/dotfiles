@@ -10,6 +10,15 @@ so it uses your existing `gh auth login`.
 
 ## Desktop
 
+- **PRs mentioned by the agent** render as compact title cards in the timeline. The agent
+  keeps its explanatory prose and adds a closed `gh-pr` fence containing one full
+  `https://github.com/<owner>/<repo>/pull/<number>` URL, one `<owner>/<repo>#<number>`
+  reference, or a bare `#<number>`. Bare references use the GitHub repository associated
+  with the session directory. Clicking a card opens the existing PR side panel.
+- The card renderer is Desktop-only. Invalid references and GitHub lookup failures keep the
+  original fenced code block instead of showing an empty card. The web app and TUI do not
+  register this renderer. Desktop releases that predate the experimental `CodeBlock` registry
+  also keep the fenced block and continue to load the plugin's existing features.
 - A **PR pill** above the composer shows the session's PRs, colored by CI state. Pick one to
   open it in the side panel.
 - **Clicking a PR link** in the timeline opens it in the side panel. Add `/files` or `/checks`
@@ -62,6 +71,7 @@ To use a `gh` binary that is not on the server's `PATH`, load the plugin from `p
 ```sh
 bun install
 bun run dev        # rebuilds the GUI bundle on change; windows reload it
+bun test           # PR cards, section labels, check status, and conversation counts
 bun run typecheck
 ```
 

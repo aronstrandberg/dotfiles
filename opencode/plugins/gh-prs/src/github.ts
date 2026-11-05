@@ -151,6 +151,24 @@ export async function summaries(refs: readonly PrRef[], options: GhOptions): Pro
   })
 }
 
+/** Summary for one PR, or `undefined` when GitHub does not return an accessible PR. */
+export async function summary(ref: PrRef, options: GhOptions): Promise<PrSummary | undefined> {
+  return (await summaries([ref], options))[0]
+}
+
+/** GitHub repository selected by `gh` for a working directory. */
+export async function repository(
+  directory: string,
+  options: GhOptions,
+): Promise<Pick<PrRef, "owner" | "repo"> | undefined> {
+  const output = await gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"], {
+    ...options,
+    cwd: directory,
+  })
+  const match = /^([\w.-]+)\/([\w.-]+)$/.exec(output.trim())
+  return match ? { owner: match[1]!, repo: match[2]! } : undefined
+}
+
 export async function branchPr(directory: string, options: GhOptions): Promise<PrRef | undefined> {
   try {
     const out = JSON.parse(await gh(["pr", "view", "--json", "url,number"], { ...options, cwd: directory })) as {
