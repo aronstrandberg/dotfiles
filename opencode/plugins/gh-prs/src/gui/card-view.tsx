@@ -1,6 +1,6 @@
-import { createMemo, Show } from "solid-js"
+import { createMemo, Show, type Accessor } from "solid-js"
 import { createLatest, type CodeBlockProps } from "@opencode/plugin/gui"
-import { api } from "../rpc.ts"
+import { api, type PrSummary } from "../rpc.ts"
 import { prCardProjection, type PrCardState } from "./card.ts"
 import type { App } from "./state.ts"
 
@@ -9,27 +9,61 @@ interface PrCardBlockProps {
   readonly block: CodeBlockProps
 }
 
+/** Session fields needed to resolve one card through its owning server. */
+export interface PrCardLookupSession<Client> {
+  readonly directory: string
+  readonly server?: { readonly client: Client }
+}
+
+/** Reactive result exposed by a card lookup resource. */
+export interface PrCardLookupResult {
+  readonly latest: PrSummary | null | undefined
+  readonly loading: boolean
+  readonly error: unknown
+}
+
+/** Creates the cancellable lookup resource used by one mounted card. */
+export function createPrCardLookup<Client>(
+  session: Accessor<PrCardLookupSession<Client> | undefined>,
+  reference: Accessor<string>,
+  fallbackClient: Client,
+  resolve: (
+    client: Client,
+    input: { readonly reference: string; readonly directory: string },
+    signal: AbortSignal,
+  ) => Promise<PrSummary | null>,
+): PrCardLookupResult {
+  return createLatest(session, (current, signal) =>
+    resolve(
+      current.server?.client ?? fallbackClient,
+      { reference: reference().trim(), directory: current.directory },
+      signal,
+    ),
+  )
+}
+
+/** Converts the card lookup resource to the renderer's complete state union. */
+export function prCardLookupState(lookup: PrCardLookupResult): PrCardState {
+  const latest = lookup.latest
+  const error = lookup.error
+  if (lookup.loading || (latest === undefined && !error)) return { status: "loading" }
+  if (error || latest === undefined || latest === null) return { status: "failed" }
+  return { status: "resolved", pr: latest }
+}
+
 function failed(error: unknown): never {
   throw error instanceof Error ? error : new Error("GitHub pull request lookup failed")
 }
 
 /** Resolves and renders one parsed `gh-pr` block through the plugin RPC. */
 export function PrCardBlock(props: PrCardBlockProps) {
-  const lookup = createLatest(
+  const lookup = createPrCardLookup(
     () => props.block.session,
-    (session, signal) =>
-      api(session.server?.client ?? props.app.ctx.client).resolve(
-        { reference: props.block.code.trim(), directory: session.directory },
-        signal,
-      ),
+    () => props.block.code,
+    props.app.ctx.client,
+    (client, input, signal) => api(client).resolve(input, signal),
   )
-  const state = createMemo((): PrCardState => {
-    const latest = lookup.latest
-    const error = lookup.error
-    if (lookup.loading || (latest === undefined && !error)) return { status: "loading" }
-    if (error || latest === undefined || latest === null) return { status: "failed" }
-    return { status: "resolved", pr: latest }
-  })
+  const state = createMemo(() => prCardLookupState(lookup))
   const projection = createMemo(() => {
     const value = prCardProjection(state())
     if (value.type !== "fallback") return value
@@ -67,6 +101,7 @@ export function PrCardBlock(props: PrCardBlockProps) {
           <button
             class="ghp-card"
             type="button"
+            aria-label={value.accessibleLabel}
             onClick={() => {
               const pr = resolved()
               if (pr) props.app.openPr(session, pr)

@@ -27,6 +27,69 @@ export interface PrSummary extends PrRef {
   readonly branch?: boolean
 }
 
+/** Parses nullable pull-request summary output received across the RPC boundary. */
+export function parsePrSummary(value: unknown): PrSummary | null {
+  if (value === null) return null
+  if (typeof value !== "object") throw new TypeError("Invalid pull request summary RPC output")
+  const field = (name: string) => Reflect.get(value, name)
+  const text = (name: string) => {
+    const result = field(name)
+    if (typeof result !== "string") throw new TypeError(`Invalid pull request summary field: ${name}`)
+    return result
+  }
+  const integer = (name: string, minimum: number) => {
+    const result = field(name)
+    if (typeof result !== "number" || !Number.isInteger(result) || result < minimum) {
+      throw new TypeError(`Invalid pull request summary field: ${name}`)
+    }
+    return result
+  }
+  const boolean = (name: string) => {
+    const result = field(name)
+    if (typeof result !== "boolean") throw new TypeError(`Invalid pull request summary field: ${name}`)
+    return result
+  }
+  const state = field("state")
+  if (state !== "OPEN" && state !== "CLOSED" && state !== "MERGED") {
+    throw new TypeError("Invalid pull request summary field: state")
+  }
+  const reviewDecision = field("reviewDecision")
+  if (
+    reviewDecision !== null &&
+    reviewDecision !== "APPROVED" &&
+    reviewDecision !== "CHANGES_REQUESTED" &&
+    reviewDecision !== "REVIEW_REQUIRED"
+  ) {
+    throw new TypeError("Invalid pull request summary field: reviewDecision")
+  }
+  const checks = field("checks")
+  if (checks !== "success" && checks !== "failure" && checks !== "pending" && checks !== "none") {
+    throw new TypeError("Invalid pull request summary field: checks")
+  }
+  const branch = field("branch")
+  if (branch !== undefined && typeof branch !== "boolean") {
+    throw new TypeError("Invalid pull request summary field: branch")
+  }
+  return {
+    owner: text("owner"),
+    repo: text("repo"),
+    number: integer("number", 1),
+    url: text("url"),
+    title: text("title"),
+    state,
+    isDraft: boolean("isDraft"),
+    author: text("author"),
+    headRefName: text("headRefName"),
+    additions: integer("additions", 0),
+    deletions: integer("deletions", 0),
+    reviewDecision,
+    checks,
+    isInMergeQueue: boolean("isInMergeQueue"),
+    autoMerge: boolean("autoMerge"),
+    ...(branch === undefined ? {} : { branch }),
+  }
+}
+
 export interface Check {
   readonly name: string
   readonly workflow?: string
@@ -119,7 +182,59 @@ const ref = {
   number: { type: "integer", minimum: 1 },
 } as const
 
-const any = {} as const
+const unknownOutput = {} as const
+const prSummary = {
+  type: "object",
+  properties: {
+    ...ref,
+    url: { type: "string" },
+    title: { type: "string" },
+    state: { type: "string", enum: ["OPEN", "CLOSED", "MERGED"] },
+    isDraft: { type: "boolean" },
+    author: { type: "string" },
+    headRefName: { type: "string" },
+    additions: { type: "integer", minimum: 0 },
+    deletions: { type: "integer", minimum: 0 },
+    reviewDecision: {
+      anyOf: [
+        { type: "string", enum: ["APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED"] },
+        { type: "null" },
+      ],
+    },
+    checks: { type: "string", enum: ["success", "failure", "pending", "none"] },
+    isInMergeQueue: { type: "boolean" },
+    autoMerge: { type: "boolean" },
+    branch: { type: "boolean" },
+  },
+  required: [
+    "owner",
+    "repo",
+    "number",
+    "url",
+    "title",
+    "state",
+    "isDraft",
+    "author",
+    "headRefName",
+    "additions",
+    "deletions",
+    "reviewDecision",
+    "checks",
+    "isInMergeQueue",
+    "autoMerge",
+  ],
+  additionalProperties: false,
+} as const
+const nullablePrSummary = { anyOf: [prSummary, { type: "null" }] } as const
+const cardLeaseInput = {
+  type: "object",
+  properties: {
+    sessionID: { type: "string", minLength: 1 },
+    token: { type: "string", minLength: 1, maxLength: 128 },
+  },
+  required: ["sessionID", "token"],
+  additionalProperties: false,
+} as const
 const errors = { gh: { type: "object", properties: { message: { type: "string" } } } } as const
 
 export const GhPrs = Rpc.define({
@@ -131,12 +246,12 @@ export const GhPrs = Rpc.define({
         properties: { sessionID: { type: "string" }, directory: { type: "string" }, fresh: { type: "boolean" } },
         required: ["sessionID"],
       },
-      output: any,
+      output: unknownOutput,
       errors,
     },
     detail: {
       input: { type: "object", properties: ref, required: ["owner", "repo", "number"] },
-      output: any,
+      output: unknownOutput,
       errors,
     },
     resolve: {
@@ -146,12 +261,30 @@ export const GhPrs = Rpc.define({
         required: ["reference"],
         additionalProperties: false,
       },
-      output: any,
+      output: nullablePrSummary,
       errors,
+    },
+    cardLease: {
+      input: cardLeaseInput,
+      output: {
+        type: "object",
+        properties: { expiresAt: { type: "integer", minimum: 0 } },
+        required: ["expiresAt"],
+        additionalProperties: false,
+      },
+    },
+    cardRelease: {
+      input: cardLeaseInput,
+      output: {
+        type: "object",
+        properties: { released: { type: "boolean" } },
+        required: ["released"],
+        additionalProperties: false,
+      },
     },
     files: {
       input: { type: "object", properties: ref, required: ["owner", "repo", "number"] },
-      output: any,
+      output: unknownOutput,
       errors,
     },
     act: {
@@ -160,7 +293,7 @@ export const GhPrs = Rpc.define({
         properties: { ...ref, action: { type: "object", properties: { type: { type: "string" } }, required: ["type"] } },
         required: ["owner", "repo", "number", "action"],
       },
-      output: any,
+      output: unknownOutput,
       errors,
     },
   },
@@ -176,12 +309,31 @@ export function api(client: { rpc(definition: typeof GhPrs): unknown }) {
   return {
     mentioned: (input: { sessionID: string; directory?: string; fresh?: boolean }) =>
       rpc.mentioned(input) as Promise<{ prs: PrSummary[]; error?: string }>,
-    resolve: (input: { reference: string; directory?: string }, signal?: AbortSignal) =>
-      rpc.resolve(input, { signal }) as Promise<PrSummary | null>,
+    resolve: async (input: { reference: string; directory?: string }, signal?: AbortSignal) =>
+      parsePrSummary(await rpc.resolve(input, { signal })),
+    cardLease: async (input: { sessionID: string; token: string }, signal?: AbortSignal) =>
+      parseCardLease(await rpc.cardLease(input, { signal })),
+    cardRelease: async (input: { sessionID: string; token: string }) => parseCardRelease(await rpc.cardRelease(input)),
     detail: (input: PrRef) => rpc.detail(pick(input)) as Promise<PrDetail>,
     files: (input: PrRef) => rpc.files(pick(input)) as Promise<{ files: PrFile[]; truncated: boolean }>,
     act: (input: PrRef, action: PrAction) => rpc.act({ ...pick(input), action }) as Promise<{ message: string }>,
   }
+}
+
+function parseCardLease(value: unknown): { readonly expiresAt: number } {
+  if (typeof value !== "object" || value === null) throw new TypeError("Invalid PR card capability lease output")
+  const expiresAt = Reflect.get(value, "expiresAt")
+  if (typeof expiresAt !== "number" || !Number.isInteger(expiresAt) || expiresAt < 0) {
+    throw new TypeError("Invalid PR card capability lease output")
+  }
+  return { expiresAt }
+}
+
+function parseCardRelease(value: unknown): { readonly released: boolean } {
+  if (typeof value !== "object" || value === null) throw new TypeError("Invalid PR card capability release output")
+  const released = Reflect.get(value, "released")
+  if (typeof released !== "boolean") throw new TypeError("Invalid PR card capability release output")
+  return { released }
 }
 
 function pick(input: PrRef): PrRef {

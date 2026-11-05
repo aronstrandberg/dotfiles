@@ -137,7 +137,7 @@ test("propagates lookup cancellation with the caller signal", async () => {
   await expect(resolving).rejects.toBe(aborted)
 })
 
-test("adds a specific agent instruction without changing persisted messages", () => {
+test("appends a specific card instruction to transient system parts", () => {
   const system: Array<{ type: "text"; text: string }> = []
 
   addPrCardInstruction(system)

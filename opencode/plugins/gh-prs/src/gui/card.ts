@@ -10,7 +10,15 @@ export type PrCardState =
 /** Visible renderer outcomes, including fallback to the host code block. */
 export type PrCardProjection =
   | { readonly type: "loading"; readonly label: string }
-  | { readonly type: "card"; readonly number: string; readonly title: string; readonly repository: string; readonly state: string; readonly checks: string }
+  | {
+      readonly type: "card"
+      readonly number: string
+      readonly title: string
+      readonly repository: string
+      readonly state: string
+      readonly checks: string
+      readonly accessibleLabel: string
+    }
   | { readonly type: "fallback" }
 
 function checksLabel(checks: PrSummary["checks"]): string {
@@ -31,13 +39,18 @@ export function prCardProjection(state: PrCardState): PrCardProjection {
   if (state.status === "loading") return { type: "loading", label: "Loading pull request…" }
   if (state.status === "resolved") {
     const pr = state.pr
+    const number = `#${pr.number}`
+    const repository = `${pr.owner}/${pr.repo}`
+    const currentState = stateLabel(pr)
+    const checks = checksLabel(pr.checks)
     return {
       type: "card",
-      number: `#${pr.number}`,
+      number,
       title: pr.title,
-      repository: `${pr.owner}/${pr.repo}`,
-      state: stateLabel(pr),
-      checks: checksLabel(pr.checks),
+      repository,
+      state: currentState,
+      checks,
+      accessibleLabel: `Pull request ${number}: ${pr.title}. ${repository}. ${currentState}. ${checks}.`,
     }
   }
   return { type: "fallback" }

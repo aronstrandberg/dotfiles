@@ -35,6 +35,7 @@ test("projects an open pull request and successful checks", () => {
     repository: "lovablelabs/lovable",
     state: "Open",
     checks: "Checks passing",
+    accessibleLabel: "Pull request #456: Render pull request cards. lovablelabs/lovable. Open. Checks passing.",
   })
 })
 

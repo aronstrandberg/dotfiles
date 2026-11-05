@@ -12,7 +12,9 @@ import {
   type PanelTab,
 } from "@opencode/plugin/gui"
 import { parsePrCardPayload } from "./pr-card.ts"
+import { api } from "./rpc.ts"
 import { parsePrUrl, prKey } from "./shared.ts"
+import { enablePrCardCapability, maintainPrCardLease } from "./gui/capability.ts"
 import { PrCardBlock } from "./gui/card-view.tsx"
 import { definition } from "./gui/definition.ts"
 import { createApp, LIST_TAB, pageFromUrl, parsePrTab, type Ctx } from "./gui/state.ts"
@@ -189,15 +191,33 @@ function setup(ctx: Ctx) {
     },
   })
 
-  if (ctx.app.platform === "desktop" && CodeBlock !== undefined) {
-    ctx.add(CodeBlock, {
-      languages: ["gh-pr"],
-      render: (props) => {
-        if (!props.session || !parsePrCardPayload(props.code)) return undefined
-        return <PrCardBlock app={app} block={props} />
-      },
-    })
-  }
+  enablePrCardCapability(
+    ctx.app.platform,
+    CodeBlock,
+    (registry) =>
+      ctx.add(registry, {
+        languages: ["gh-pr"],
+        render: (props) => {
+          if (!props.session || !parsePrCardPayload(props.code)) return undefined
+          return <PrCardBlock app={app} block={props} />
+        },
+      }),
+    () =>
+      maintainPrCardLease({
+        current: () => ctx.sessions.current(),
+        fallbackClient: ctx.client,
+        token: crypto.randomUUID(),
+        repeat: (task, milliseconds) => {
+          const timer = setInterval(task, milliseconds)
+          return () => clearInterval(timer)
+        },
+        api: (client) => {
+          const rpc = api(client)
+          return { lease: rpc.cardLease, release: rpc.cardRelease }
+        },
+        onError: () => {},
+      }),
+  )
 
   // Clicking a PR link in the timeline opens it here instead of a browser.
   ctx.add(LinkHandler, {

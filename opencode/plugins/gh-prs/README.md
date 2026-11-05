@@ -15,10 +15,15 @@ so it uses your existing `gh auth login`.
   `https://github.com/<owner>/<repo>/pull/<number>` URL, one `<owner>/<repo>#<number>`
   reference, or a bare `#<number>`. Bare references use the GitHub repository associated
   with the session directory. Clicking a card opens the existing PR side panel.
-- The card renderer is Desktop-only. Invalid references and GitHub lookup failures keep the
-  original fenced code block instead of showing an empty card. The web app and TUI do not
-  register this renderer. Desktop releases that predate the experimental `CodeBlock` registry
-  also keep the fenced block and continue to load the plugin's existing features.
+- The card renderer is Desktop-only. After a window registers the experimental `CodeBlock`
+  renderer, it renews a short-lived capability lease for the session routed in that window.
+  Only a session with an active lease tells the agent to emit `gh-pr` fences. Closing the window
+  or routing away releases its lease, and abandoned leases expire after 45 seconds. Separate
+  window tokens let several windows view the same session safely.
+- Invalid references and GitHub lookup failures keep the original fenced code block instead of
+  showing an empty card. The web app, TUI, and Desktop releases that predate `CodeBlock` never
+  lease the capability, so their agents are not instructed to emit raw `gh-pr` fences. A manual
+  or previously persisted fence remains plain code on those hosts.
 - A **PR pill** above the composer shows the session's PRs, colored by CI state. Pick one to
   open it in the side panel.
 - **Clicking a PR link** in the timeline opens it in the side panel. Add `/files` or `/checks`

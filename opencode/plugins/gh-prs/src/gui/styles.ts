@@ -77,6 +77,11 @@ export const css = `
 .ghp-actions .ghp-spacer { flex: 1; }
 .ghp-merge-status { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .ghp-sections { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 2px; }
+.ghp-section-button, .ghp-group-button { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 5px;
+  min-height: 28px; padding: 0 8px; border-radius: 6px; cursor: pointer; color: var(--ghp-muted); }
+.ghp-section-button:hover, .ghp-group-button:hover { background: var(--v2-overlay-simple-overlay-hover, color-mix(in srgb, currentColor 6%, transparent)); color: var(--ghp-fg); }
+.ghp-section-button:focus-visible, .ghp-group-button:focus-visible { outline: 2px solid var(--v2-border-border-focus, LinkText); outline-offset: 1px; }
+.ghp-section-button[data-active] { color: var(--ghp-fg); background: var(--ghp-layer); box-shadow: inset 0 0 0 1px var(--ghp-border); }
 .ghp-section-count { color: var(--ghp-muted); font-variant-numeric: tabular-nums; }
 .ghp-section-count[data-tone="failure"] { color: var(--ghp-bad); }
 .ghp-section-count[data-tone="pending"] { color: var(--ghp-warn); }

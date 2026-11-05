@@ -1,13 +1,19 @@
 import { existsSync } from "node:fs"
 import { Plugin } from "@opencode/plugin"
+import { PrCardLeases } from "./capability.ts"
 import * as GitHub from "./github.ts"
 import { addPrCardInstruction, parsePrCardPayload, resolvePrCard } from "./pr-card.ts"
-import { GhPrs, type PrAction, type PrRef, type PrSummary } from "./rpc.ts"
+import { GhPrs, type PrAction, type PrRef } from "./rpc.ts"
 import { findPrUrls, prKey } from "./shared.ts"
+import { GitHubLoadPool, RepositoryCache, SummaryCache } from "./summary-cache.ts"
 
 /** Most mentioned PRs listed per session, newest mention first. */
 const MAX_PRS = 40
 const SUMMARY_TTL = 30_000
+const SUMMARY_CAPACITY = 100
+const SUMMARY_CONCURRENCY = 4
+const REPOSITORY_CAPACITY = 20
+const CARD_LEASE_TTL = 45_000
 
 export default Plugin.define({
   id: "ghprs",
@@ -17,24 +23,23 @@ export default Plugin.define({
       typeof ctx.options.gh === "string"
         ? ctx.options.gh
         : (Bun.which("gh") ?? ["/opt/homebrew/bin/gh", "/usr/local/bin/gh"].find((path) => existsSync(path)) ?? "gh")
-    const cache = new Map<string, { at: number; summary: PrSummary | null }>()
-
-    async function cachedSummaries(refs: PrRef[], fresh: boolean, signal: AbortSignal) {
-      const now = Date.now()
-      const stale = refs.filter((ref) => {
-        const hit = cache.get(prKey(ref))
-        return fresh || !hit || now - hit.at > SUMMARY_TTL
-      })
-      if (stale.length > 0) {
-        const loaded = await GitHub.summaries(stale, { gh, signal })
-        const byKey = new Map(loaded.map((summary) => [prKey(summary), summary]))
-        for (const ref of stale) cache.set(prKey(ref), { at: now, summary: byKey.get(prKey(ref)) ?? null })
-      }
-      return refs.flatMap((ref) => {
-        const summary = cache.get(prKey(ref))?.summary
-        return summary ? [summary] : []
-      })
-    }
+    const loadPool = new GitHubLoadPool(SUMMARY_CONCURRENCY)
+    const cache = new SummaryCache({
+      ttl: SUMMARY_TTL,
+      capacity: SUMMARY_CAPACITY,
+      concurrency: SUMMARY_CONCURRENCY,
+      pool: loadPool,
+      now: Date.now,
+      load: (refs, signal) => GitHub.summaries(refs, { gh, signal }),
+    })
+    const repositories = new RepositoryCache({
+      ttl: SUMMARY_TTL,
+      capacity: REPOSITORY_CAPACITY,
+      pool: loadPool,
+      now: Date.now,
+      load: (directory, signal) => GitHub.repository(directory, { gh, signal }),
+    })
+    const leases = new PrCardLeases({ ttl: CARD_LEASE_TTL, now: Date.now })
 
     const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
     // RPC output must be plain JSON: drop undefined fields.
@@ -57,7 +62,19 @@ export default Plugin.define({
       return directory === undefined ? { reference } : { reference, directory }
     }
 
-    await ctx.session.hook("context", (event) => addPrCardInstruction(event.system))
+    const leaseInput = (input: unknown): { sessionID: string; token: string } => {
+      if (typeof input !== "object" || input === null) throw new GitHub.GhError("Invalid PR card capability lease")
+      const sessionID = Reflect.get(input, "sessionID")
+      const token = Reflect.get(input, "token")
+      if (typeof sessionID !== "string" || !sessionID || typeof token !== "string" || !token || token.length > 128) {
+        throw new GitHub.GhError("Invalid PR card capability lease")
+      }
+      return { sessionID, token }
+    }
+
+    await ctx.session.hook("context", (event) => {
+      if (leases.enabled(event.sessionID)) addPrCardInstruction(event.system)
+    })
 
     await ctx.rpc.register(GhPrs, {
       mentioned: async (input, call) => {
@@ -77,7 +94,7 @@ export default Plugin.define({
           (ref, index, all) => all.findIndex((other) => prKey(other) === prKey(ref)) === index,
         )
         try {
-          const prs = await cachedSummaries(refs, fresh === true, call.signal)
+          const prs = await cache.getMany(refs, fresh === true, call.signal)
           return json({ prs: prs.map((pr) => (branch && prKey(pr) === prKey(branch) ? { ...pr, branch: true } : pr)) })
         } catch (error) {
           return { prs: [], error: message(error) }
@@ -87,7 +104,7 @@ export default Plugin.define({
         try {
           const ref = checked(input)
           const result = await GitHub.detail(ref, { gh, signal: call.signal })
-          cache.set(prKey(ref), { at: Date.now(), summary: result })
+          cache.put(result)
           return json(result)
         } catch (error) {
           return call.error("gh", message(error), { message: message(error) })
@@ -102,8 +119,8 @@ export default Plugin.define({
             mention,
             request.directory,
             {
-              repository: (directory, signal) => GitHub.repository(directory, { gh, signal }),
-              summary: (ref, signal) => GitHub.summary(ref, { gh, signal }),
+              repository: (directory, signal) => repositories.get(directory, signal),
+              summary: (ref, signal) => cache.get(ref, signal),
             },
             call.signal,
           )
@@ -112,6 +129,15 @@ export default Plugin.define({
           if (call.signal.aborted) throw error
           return call.error("gh", message(error), { message: message(error) })
         }
+      },
+      cardLease: async (input) => {
+        const request = leaseInput(input)
+        return { expiresAt: leases.touch(request.sessionID, request.token) }
+      },
+      cardRelease: async (input) => {
+        const request = leaseInput(input)
+        leases.release(request.sessionID, request.token)
+        return { released: true }
       },
       files: async (input, call) => {
         try {
@@ -124,12 +150,16 @@ export default Plugin.define({
         const { action } = input as { action: PrAction }
         try {
           const ref = checked(input)
-          cache.delete(prKey(ref))
+          cache.invalidate(ref)
           return await GitHub.act(ref, action, { gh })
         } catch (error) {
           return call.error("gh", message(error), { message: message(error) })
         }
       },
     })
+    return () => {
+      repositories.dispose()
+      cache.dispose()
+    }
   },
 })

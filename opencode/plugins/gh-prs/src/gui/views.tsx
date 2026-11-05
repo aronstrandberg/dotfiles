@@ -53,6 +53,15 @@ function checkIcon(state: Check["state"] | PrSummary["checks"]) {
   return "circle-ban-sign" as const
 }
 
+function checkStateLabel(state: Check["state"] | PrSummary["checks"]): string {
+  if (state === "success") return "passing"
+  if (state === "failure") return "failing"
+  if (state === "pending") return "in progress"
+  if (state === "skipped") return "skipped"
+  if (state === "neutral") return "neutral"
+  return "not reported"
+}
+
 /* ------------------------------------------------------------------------------------------------ */
 /* List                                                                                              */
 /* ------------------------------------------------------------------------------------------------ */
@@ -100,7 +109,8 @@ export function ListView(props: { app: App; session: MountedSession }) {
           <For each={mentions()?.prs}>
             {(pr) => (
               <div class="ghp-item" onClick={() => props.app.openPr(props.session, pr)}>
-                <span class="ghp-dot" data-checks={pr.checks} title={`Checks: ${pr.checks}`} />
+                <span class="ghp-dot" data-checks={pr.checks} aria-hidden="true" />
+                <span class="ghp-sr-only">Checks {checkStateLabel(pr.checks)}</span>
                 <div class="ghp-item-title ghp-ellipsis">{pr.title}</div>
                 <StateLabel app={props.app} pr={pr} />
                 <div class="ghp-item-meta">
@@ -358,14 +368,18 @@ function Header(props: {
       <nav class="ghp-sections" aria-label="Pull request sections">
         <For each={sections()}>
           {(section) => (
-            <span aria-current={props.page === section.id ? "page" : undefined}>
-              <ui.Button size="small" variant={props.page === section.id ? "neutral" : "ghost-muted"} onClick={() => props.setPage(section.id)}>
-                {section.label}{" "}
-                <Show when={section.detail}>
-                  <span class="ghp-section-count" data-tone={section.tone}>{section.detail}</span>
-                </Show>
-              </ui.Button>
-            </span>
+            <button
+              type="button"
+              class="ghp-section-button"
+              data-active={props.page === section.id ? "" : undefined}
+              aria-current={props.page === section.id ? "page" : undefined}
+              onClick={() => props.setPage(section.id)}
+            >
+              {section.label}{" "}
+              <Show when={section.detail}>
+                <span class="ghp-section-count" data-tone={section.tone}>{section.detail}</span>
+              </Show>
+            </button>
           )}
         </For>
       </nav>
@@ -390,16 +404,20 @@ function Overview(props: { app: App; pr: PrDetail }) {
           <dt>Reviewers</dt>
           <dd>
             <For each={reviewers()}>
-              {([name, state]) => (
-                <ui.Tooltip value={state === "REQUESTED" ? "Review requested" : state.toLowerCase().replaceAll("_", " ")}>
-                  <span class="ghp-chip">
-                    <span class="ghp-review-state" data-state={state}>
-                      <ui.Icon name={state === "APPROVED" ? "check-small" : state === "CHANGES_REQUESTED" ? "circle-x" : "status-active"} size="small" />
+              {([name, state]) => {
+                const status = state === "REQUESTED" ? "Review requested" : state.toLowerCase().replaceAll("_", " ")
+                return (
+                  <ui.Tooltip value={status}>
+                    <span class="ghp-chip">
+                      <span class="ghp-review-state" data-state={state} aria-hidden="true">
+                        <ui.Icon name={state === "APPROVED" ? "check-small" : state === "CHANGES_REQUESTED" ? "circle-x" : "status-active"} size="small" />
+                      </span>
+                      {name}
+                      <span class="ghp-sr-only">, {status}</span>
                     </span>
-                    {name}
-                  </span>
-                </ui.Tooltip>
-              )}
+                  </ui.Tooltip>
+                )
+              }}
             </For>
           </dd>
         </Show>
@@ -505,47 +523,60 @@ function Checks(props: { app: App; session: MountedSession; screen: SessionScree
       <div class="ghp-scroll">
         <Show when={props.pr.checkList.length > 0} fallback={<div class="ghp-empty">No checks reported for {props.pr.headRefOid.slice(0, 7)}.</div>}>
           <For each={groups()}>
-            {(group) => (
-              <>
-                <div class="ghp-group-head">
-                  <ui.Button variant="ghost-muted" size="small" icon={isOpen(group) ? "chevron-down" : "chevron-right"} onClick={() => setToggled({ ...toggled(), [group.id]: !isOpen(group) })}>
-                    {group.title} <span class="ghp-section-count">{group.items.length}</span>
-                    <span class="ghp-sr-only"> {isOpen(group) ? "Collapse" : "Expand"}</span>
-                  </ui.Button>
-                </div>
-                <Show when={isOpen(group)}>
-                  <For each={group.items}>
-                    {(check) => (
-                      <div class="ghp-check">
-                        <span class={`ghp-tone-${check.state}`} style={{ display: "inline-flex" }}>
-                          <ui.Icon name={checkIcon(check.state)} size="small" />
-                        </span>
-                        <div class="ghp-check-name">
-                          <span class="ghp-ellipsis">{check.name}</span>
-                          <small class="ghp-ellipsis">
-                            {[check.workflow, check.description, duration(check)].filter(Boolean).join(" · ")}
-                          </small>
-                        </div>
-                        <div class="ghp-check-actions">
-                          <Show when={check.state === "failure" || check.state === "pending"}>
-                            <ui.Tooltip value="Add to prompt">
-                              <ui.IconButton icon="prompt" label="Add to prompt" size="small" variant="ghost" onClick={() => attachCheck(check)} />
-                            </ui.Tooltip>
-                          </Show>
-                          <Show when={check.url}>
-                            {(url) => (
-                              <ui.Tooltip value="Open details">
-                                <ui.IconButton icon="square-arrow-top-right" label="Open details" size="small" variant="ghost" onClick={() => openUrl(props.app, props.session, url())} />
-                              </ui.Tooltip>
-                            )}
-                          </Show>
-                        </div>
-                      </div>
-                    )}
-                  </For>
-                </Show>
-              </>
-            )}
+            {(group) => {
+              const controls = `ghp-checks-${props.pr.owner}-${props.pr.repo}-${props.pr.number}-${group.id}`
+              return (
+                <>
+                  <div class="ghp-group-head">
+                    <button
+                      type="button"
+                      class="ghp-group-button"
+                      aria-expanded={isOpen(group)}
+                      aria-controls={controls}
+                      onClick={() => setToggled({ ...toggled(), [group.id]: !isOpen(group) })}
+                    >
+                      <ui.Icon name={isOpen(group) ? "chevron-down" : "chevron-right"} size="small" />
+                      {group.title} <span class="ghp-section-count">{group.items.length}</span>
+                    </button>
+                  </div>
+                  <div id={controls}>
+                    <Show when={isOpen(group)}>
+                      <For each={group.items}>
+                        {(check) => (
+                          <div class="ghp-check">
+                            <span class={`ghp-tone-${check.state}`} style={{ display: "inline-flex" }} aria-hidden="true">
+                              <ui.Icon name={checkIcon(check.state)} size="small" />
+                            </span>
+                            <div class="ghp-check-name">
+                              <span class="ghp-ellipsis">
+                                {check.name}<span class="ghp-sr-only">, {checkStateLabel(check.state)}</span>
+                              </span>
+                              <small class="ghp-ellipsis">
+                                {[check.workflow, check.description, duration(check)].filter(Boolean).join(" · ")}
+                              </small>
+                            </div>
+                            <div class="ghp-check-actions">
+                              <Show when={check.state === "failure" || check.state === "pending"}>
+                                <ui.Tooltip value="Add to prompt">
+                                  <ui.IconButton icon="prompt" label="Add to prompt" size="small" variant="ghost" onClick={() => attachCheck(check)} />
+                                </ui.Tooltip>
+                              </Show>
+                              <Show when={check.url}>
+                                {(url) => (
+                                  <ui.Tooltip value="Open details">
+                                    <ui.IconButton icon="square-arrow-top-right" label="Open details" size="small" variant="ghost" onClick={() => openUrl(props.app, props.session, url())} />
+                                  </ui.Tooltip>
+                                )}
+                              </Show>
+                            </div>
+                          </div>
+                        )}
+                      </For>
+                    </Show>
+                  </div>
+                </>
+              )
+            }}
           </For>
         </Show>
       </div>
