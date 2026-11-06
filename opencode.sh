@@ -12,3 +12,11 @@ for plugin in "$source_dir"/plugins/*/; do
   rsync -a --delete --exclude node_modules "$plugin" "$plugins_dir/$name/"
   printf 'Installed OpenCode plugin %s to %s\n' "$name" "$plugins_dir/$name"
 done
+
+skills_dir="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills"
+mkdir -p "$skills_dir"
+for skill in "$source_dir"/skills/*/; do
+  name=$(basename "$skill")
+  rsync -a --delete "$skill" "$skills_dir/$name/"
+  printf 'Installed OpenCode skill %s to %s\n' "$name" "$skills_dir/$name"
+done
