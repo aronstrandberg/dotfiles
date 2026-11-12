@@ -1,0 +1,39 @@
+{
+  "name": "opencode-pele",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Render Mermaid fences inline with Pele in OpenCode Desktop.",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    "./gui-experimental": "./dist/gui-experimental.cjs"
+  },
+  "scripts": {
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run test && bun run build",
+    "build": "bun --bun vite build",
+    "dev": "bun --bun vite build --watch",
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@opencode/plugin": "0.0.0-dev-639",
+    "dompurify": "3.4.17",
+    "pele": "1.13.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "@types/node": "^24.0.0",
+    "oxfmt": "0.78.0",
+    "oxlint": "1.93.0",
+    "solid-js": "^1.9.12",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vite-plugin-solid": "^2.11.12"
+  }
+}
