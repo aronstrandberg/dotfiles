@@ -18,6 +18,7 @@ import { mergeChoices, type MergeChoice } from "../merge.ts"
 import { errorText, type App, type Page } from "./state.ts"
 import { prSections } from "./sections.ts"
 import { PrTable } from "./pr-table.tsx"
+import { stackMermaid } from "../stack.ts"
 
 const POLL_MS = 30_000
 
@@ -84,6 +85,12 @@ export function ListView(props: { app: App; session: MountedSession }) {
     if (panel.visible() && !mentions()?.loading) void props.app.load(props.session)
   }, POLL_MS)
   onCleanup(() => clearInterval(timer))
+  const [view, setView] = createSignal<"table" | "stack">("table")
+  const ordered = createMemo(() => {
+    const byKey = new Map((mentions()?.prs ?? []).map((pr) => [prKey(pr), pr]))
+    return (mentions()?.tracked ?? []).flatMap((tracked) => byKey.get(prKey(tracked)) ?? [])
+  })
+  const graph = createMemo(() => stackMermaid(ordered()))
 
   return (
     <div class="ghp" data-placement={panel.placement()}>
@@ -93,6 +100,28 @@ export function ListView(props: { app: App; session: MountedSession }) {
           <div class="ghp-muted" style={{ "font-size": "12px" }}>
             Registered by this session · CI from GitHub · work status reported by agents
           </div>
+        </div>
+        <div class="ghp-row" role="group" aria-label="View">
+          <For
+            each={
+              [
+                { id: "table", label: "Table" },
+                { id: "stack", label: "Stack" },
+              ] as const
+            }
+          >
+            {(option) => (
+              <button
+                type="button"
+                class="ghp-section-button"
+                aria-pressed={view() === option.id}
+                data-active={view() === option.id ? "" : undefined}
+                onClick={() => setView(option.id)}
+              >
+                {option.label}
+              </button>
+            )}
+          </For>
         </div>
         <ui.Tooltip value="Refresh">
           <ui.IconButton
@@ -122,11 +151,27 @@ export function ListView(props: { app: App; session: MountedSession }) {
             </div>
           }
         >
-          <PrTable
-            tracked={mentions()?.tracked ?? []}
-            prs={mentions()?.prs ?? []}
-            onOpen={(ref, page) => props.app.openPr(props.session, ref, page)}
-          />
+          <Show
+            when={view() === "stack"}
+            fallback={
+              <PrTable
+                tracked={mentions()?.tracked ?? []}
+                prs={mentions()?.prs ?? []}
+                onOpen={(ref, page) => props.app.openPr(props.session, ref, page)}
+              />
+            }
+          >
+            <div class="ghp-pad">
+              <Show when={ordered().some((pr) => pr.baseRefName === undefined)}>
+                <div class="ghp-note">
+                  This session's server runs an older gh-prs plugin, so stacks can't be drawn. Update the plugin there.
+                </div>
+              </Show>
+              <Show when={graph()} fallback={<div class="ghp-muted">GitHub data for these PRs is unavailable.</div>}>
+                {(source) => <ui.Markdown text={`\`\`\`mermaid\n${source()}\n\`\`\``} />}
+              </Show>
+            </div>
+          </Show>
         </Show>
       </div>
     </div>

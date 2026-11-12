@@ -1,7 +1,65 @@
-import { createMemo, For, Show } from "solid-js"
-import type { PrRef, PrSummary } from "../rpc.ts"
+import { createMemo, For, Match, Show, Switch } from "solid-js"
+import type { CiStatus } from "../ci.ts"
+import type { ChecksState, PrRef, PrSummary } from "../rpc.ts"
 import { prKey, relativeTime, reviewLabel, stateLabel } from "../shared.ts"
 import { workLabels, type TrackedPr } from "../work-status.ts"
+
+const SHOWN_NAMES = 3
+
+/** Status from a server that predates named checks: the rollup's kind without names. */
+function fallback(checks: ChecksState): CiStatus {
+  if (checks === "success") return { kind: "green" }
+  if (checks === "failure") return { kind: "red", count: 0, names: [], running: 0 }
+  if (checks === "pending") return { kind: "running", count: 0, names: [] }
+  return { kind: "none" }
+}
+
+function Names(props: { names: readonly string[]; count: number }) {
+  const more = () => Math.max(props.count, props.names.length) - Math.min(props.names.length, SHOWN_NAMES)
+  return (
+    <Show when={props.names.length > 0}>
+      <span class="ghp-ci-names">
+        {props.names.slice(0, SHOWN_NAMES).join(", ")}
+        {more() > 0 ? `, and ${more()} more` : ""}
+      </span>
+    </Show>
+  )
+}
+
+function CiSummary(props: { ci: CiStatus }) {
+  return (
+    <Switch>
+      <Match when={props.ci.kind === "green"}>
+        <span class="ghp-tone-success">All green</span>
+      </Match>
+      <Match when={props.ci.kind === "red" && props.ci}>
+        {(red) => (
+          <>
+            <span class="ghp-tone-failure">{red().count > 0 ? `${red().count} failing` : "Failing"}</span>
+            <Names names={red().names} count={red().count} />
+            <Show when={red().running > 0}>
+              <span class="ghp-ci-names ghp-tone-pending">{red().running} still running</span>
+            </Show>
+          </>
+        )}
+      </Match>
+      <Match when={props.ci.kind === "running" && props.ci}>
+        {(running) => (
+          <>
+            <span class="ghp-tone-pending">{running().count > 0 ? `${running().count} running` : "Running"}</span>
+            <Names names={running().names} count={running().count} />
+          </>
+        )}
+      </Match>
+      <Match when={props.ci.kind === "unknown" && props.ci}>
+        {(unknown) => <span class="ghp-muted">{unknown().count} in an unknown state</span>}
+      </Match>
+      <Match when={props.ci.kind === "none"}>
+        <span class="ghp-muted">No checks</span>
+      </Match>
+    </Switch>
+  )
+}
 
 /** Shows only registered PRs, keeping saved work notes visible when GitHub is unavailable. */
 export function PrTable(props: {
@@ -10,7 +68,6 @@ export function PrTable(props: {
   onOpen: (ref: PrRef, page?: "checks") => void
 }) {
   const prs = createMemo(() => new Map(props.prs.map((pr) => [prKey(pr), pr])))
-  const labels = { success: "Passing", failure: "Failing", pending: "Running / queued", none: "Not reported" }
   return (
     <table class="ghp-table">
       <caption class="ghp-sr-only">Pull requests registered by this session</caption>
@@ -18,7 +75,6 @@ export function PrTable(props: {
         <tr>
           <th scope="col">Pull request</th>
           <th scope="col">CI</th>
-          <th scope="col">Review</th>
           <th scope="col">Work status</th>
         </tr>
       </thead>
@@ -38,9 +94,18 @@ export function PrTable(props: {
                     </span>
                     <Show when={pr()}>
                       {(value) => (
-                        <span class="ghp-state" data-state={stateLabel(value())}>
-                          {stateLabel(value())}
-                        </span>
+                        <>
+                          <span class="ghp-state" data-state={stateLabel(value())}>
+                            {stateLabel(value())}
+                          </span>
+                          <Show when={reviewLabel(value().reviewDecision)}>
+                            {(review) => (
+                              <span class="ghp-review-state" data-state={value().reviewDecision ?? undefined}>
+                                {review()}
+                              </span>
+                            )}
+                          </Show>
+                        </>
                       )}
                     </Show>
                   </div>
@@ -52,32 +117,14 @@ export function PrTable(props: {
                     aria-label={`View CI checks for ${tracked.repo}#${tracked.number}`}
                     onClick={() => props.onOpen(tracked, "checks")}
                   >
-                    <span class={`ghp-tone-${pr()?.checks ?? "neutral"}`}>
-                      {pr() ? labels[pr()?.checks ?? "none"] : "Unavailable"}
-                    </span>
+                    <Show when={pr()} fallback={<span class="ghp-muted">Unavailable</span>}>
+                      {(value) => (
+                        <Show when={value().state === "OPEN"}>
+                          <CiSummary ci={value().ci ?? fallback(value().checks)} />
+                        </Show>
+                      )}
+                    </Show>
                   </button>
-                  <Show when={pr()?.checkCounts}>
-                    {(counts) => (
-                      <div class="ghp-ci-counts">
-                        <Show when={counts().failure > 0}>
-                          <span class="ghp-tone-failure">{counts().failure} failing</span>
-                        </Show>
-                        <Show when={counts().pending > 0}>
-                          <span class="ghp-tone-pending">{counts().pending} running / queued</span>
-                        </Show>
-                        <span>{counts().success} passed</span>
-                        <Show when={counts().skipped + counts().neutral > 0}>
-                          <span>{counts().skipped + counts().neutral} skipped / neutral</span>
-                        </Show>
-                        <Show when={counts().unknown > 0}>
-                          <span>{counts().unknown} unknown</span>
-                        </Show>
-                      </div>
-                    )}
-                  </Show>
-                </td>
-                <td class="ghp-muted">
-                  {pr() ? reviewLabel(pr()?.reviewDecision ?? null) || "Not reported" : "Unavailable"}
                 </td>
                 <td>
                   <div class="ghp-work-state" data-work={tracked.state}>

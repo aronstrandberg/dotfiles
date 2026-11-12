@@ -23,6 +23,7 @@ const first: PrSummary = {
   isInMergeQueue: false,
   autoMerge: false,
   checkCounts: { success: 150, failure: 2, pending: 3, skipped: 3, neutral: 0, unknown: 0 },
+  ci: { kind: "red", count: 2, names: ["lint-go", "test-web"], running: 3 },
 }
 const prs: PrSummary[] = [
   first,
@@ -32,6 +33,7 @@ const prs: PrSummary[] = [
     title: "Update alert routing",
     checks: "success",
     checkCounts: { success: 12, failure: 0, pending: 0, skipped: 1, neutral: 0, unknown: 0 },
+    ci: { kind: "green" },
   },
   { ...first, number: 999, title: "Unrelated PR mentioned in chat" },
   {
@@ -40,8 +42,17 @@ const prs: PrSummary[] = [
     title: "Teammate's base PR",
     author: "mikn",
     state: "MERGED",
-    checks: "success",
-    checkCounts: { success: 20, failure: 0, pending: 0, skipped: 0, neutral: 0, unknown: 0 },
+    checks: "failure",
+    checkCounts: { success: 15, failure: 1, pending: 0, skipped: 0, neutral: 0, unknown: 0 },
+    ci: { kind: "red", count: 1, names: ["leftover-from-merge"], running: 0 },
+  },
+  {
+    ...first,
+    number: 461,
+    title: "Roll the canary to the next pool",
+    checks: "pending",
+    checkCounts: { success: 15, failure: 0, pending: 5, skipped: 0, neutral: 0, unknown: 0 },
+    ci: { kind: "running", count: 5, names: ["bazel-test", "e2e", "deploy-preview", "lint", "types"] },
   },
 ]
 const tracked: TrackedPr[] = [
@@ -75,6 +86,14 @@ const tracked: TrackedPr[] = [
     number: 460,
     state: "blocked",
     note: "Mikael owns this; our PR needs it merged first",
+    updatedAt: Date.now(),
+  },
+  {
+    owner: "lovablelabs",
+    repo: "lovable",
+    number: 461,
+    state: "waiting-ci",
+    note: "Waiting for the canary checks",
     updatedAt: Date.now(),
   },
 ]

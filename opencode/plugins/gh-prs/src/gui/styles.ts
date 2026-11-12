@@ -67,14 +67,13 @@ export const css = `
 .ghp-table { width: 100%; min-width: 640px; border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
 .ghp-table th, .ghp-table td { padding: 10px 14px; text-align: start; vertical-align: top; border-bottom: 1px solid var(--ghp-border); overflow-wrap: anywhere; }
 .ghp-table th { position: sticky; top: 0; background: var(--ghp-layer); color: var(--ghp-muted); font-size: 12px; font-weight: 500; }
-.ghp-table th:first-child { width: 34%; }
-.ghp-table th:nth-child(2) { width: 22%; }
-.ghp-table th:nth-child(3) { width: 16%; }
+.ghp-table th:first-child { width: 40%; }
+.ghp-table th:nth-child(2) { width: 25%; }
 .ghp-table-link { all: unset; cursor: pointer; display: inline-block; touch-action: manipulation; font-weight: 500; }
 .ghp-table-link:focus-visible { outline: 2px solid var(--v2-border-border-focus, LinkText); outline-offset: 3px; border-radius: 2px; }
 @media (hover: hover) { .ghp-table-link:hover { text-decoration: underline; } }
 .ghp-table-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; color: var(--ghp-muted); font-size: 11px; margin-top: 4px; }
-.ghp-ci-counts { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; font-size: 12px; color: var(--ghp-muted); }
+.ghp-ci-names { display: block; margin-top: 4px; font-size: 12px; font-weight: 400; color: var(--ghp-muted); }
 .ghp-work-state { font-weight: 500; }
 .ghp-work-state[data-work="waiting-user"], .ghp-work-state[data-work="blocked"] { color: var(--ghp-warn); }
 .ghp-work-state[data-work="agent-working"] { color: var(--ghp-info); }

@@ -1,5 +1,5 @@
 import { Rpc } from "@opencode/plugin/rpc"
-import { parseCiCounts, type CiCounts } from "./ci.ts"
+import { parseCiCounts, parseCiStatus, type CiCounts, type CiStatus } from "./ci.ts"
 import { parseTrackedPr } from "./work-status.ts"
 
 export interface PrRef {
@@ -19,11 +19,14 @@ export interface PrSummary extends PrRef {
   readonly isDraft: boolean
   readonly author: string
   readonly headRefName: string
+  /** Missing from servers that predate stack graphs. */
+  readonly baseRefName?: string
   readonly additions: number
   readonly deletions: number
   readonly reviewDecision: ReviewDecision
   readonly checks: ChecksState
   readonly checkCounts?: CiCounts
+  readonly ci?: CiStatus
   readonly isInMergeQueue: boolean
   readonly autoMerge: boolean
   /** The PR of the session directory's current branch, not one the transcript links. */
@@ -83,11 +86,13 @@ export function parsePrSummary(value: unknown): PrSummary | null {
     isDraft: boolean("isDraft"),
     author: text("author"),
     headRefName: text("headRefName"),
+    ...(field("baseRefName") === undefined ? {} : { baseRefName: text("baseRefName") }),
     additions: integer("additions", 0),
     deletions: integer("deletions", 0),
     reviewDecision,
     checks,
     ...(field("checkCounts") === undefined ? {} : { checkCounts: parseCiCounts(field("checkCounts")) }),
+    ...(field("ci") === undefined ? {} : { ci: parseCiStatus(field("ci")) }),
     isInMergeQueue: boolean("isInMergeQueue"),
     autoMerge: boolean("autoMerge"),
     ...(branch === undefined ? {} : { branch }),
@@ -197,6 +202,7 @@ const prSummary = {
     isDraft: { type: "boolean" },
     author: { type: "string" },
     headRefName: { type: "string" },
+    baseRefName: { type: "string" },
     additions: { type: "integer", minimum: 0 },
     deletions: { type: "integer", minimum: 0 },
     reviewDecision: {
@@ -214,6 +220,17 @@ const prSummary = {
         unknown: { type: "integer", minimum: 0 },
       },
       required: ["success", "failure", "pending", "skipped", "neutral", "unknown"],
+      additionalProperties: false,
+    },
+    ci: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: ["none", "green", "red", "running", "unknown"] },
+        count: { type: "integer", minimum: 0 },
+        names: { type: "array", items: { type: "string" } },
+        running: { type: "integer", minimum: 0 },
+      },
+      required: ["kind"],
       additionalProperties: false,
     },
     isInMergeQueue: { type: "boolean" },

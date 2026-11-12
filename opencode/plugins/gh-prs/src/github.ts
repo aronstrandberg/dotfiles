@@ -14,7 +14,7 @@ import type {
   ReviewThread,
 } from "./rpc.ts"
 import { visibleMarkdown } from "./shared.ts"
-import { githubCheckCounts } from "./ci.ts"
+import { ciStatus, githubCheckCounts } from "./ci.ts"
 
 export class GhError extends Error {
   constructor(
@@ -68,10 +68,13 @@ async function graphql<T>(query: string, variables: Record<string, string | numb
 }
 
 const SUMMARY_FIELDS = `
-  number title url state isDraft headRefName additions deletions reviewDecision isInMergeQueue
+  number title url state isDraft headRefName baseRefName additions deletions reviewDecision isInMergeQueue
   author { login }
   autoMergeRequest { mergeMethod }
-  commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 100) { totalCount checkRunCountsByState { state count } statusContextCountsByState { state count } } } } } }
+  commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 100) {
+    totalCount checkRunCountsByState { state count } statusContextCountsByState { state count }
+    nodes { __typename ... on CheckRun { name status conclusion } ... on StatusContext { context state } }
+  } } } } }
 `
 
 interface RawSummary {
@@ -81,6 +84,7 @@ interface RawSummary {
   state: PrSummary["state"]
   isDraft: boolean
   headRefName: string
+  baseRefName: string
   additions: number
   deletions: number
   reviewDecision: PrSummary["reviewDecision"]
@@ -106,6 +110,9 @@ function rollupState(state: string | undefined | null): ChecksState {
 }
 
 function toSummary(ref: PrRef, raw: RawSummary): PrSummary {
+  const contexts = raw.commits.nodes[0]?.commit.statusCheckRollup?.contexts
+  const checkCounts = githubCheckCounts(contexts)
+  const nodes: unknown = typeof contexts === "object" && contexts !== null ? Reflect.get(contexts, "nodes") : []
   return {
     owner: ref.owner,
     repo: ref.repo,
@@ -116,11 +123,13 @@ function toSummary(ref: PrRef, raw: RawSummary): PrSummary {
     isDraft: raw.isDraft,
     author: raw.author?.login ?? "ghost",
     headRefName: raw.headRefName,
+    baseRefName: raw.baseRefName,
     additions: raw.additions,
     deletions: raw.deletions,
     reviewDecision: raw.reviewDecision,
     checks: rollupState(raw.commits.nodes[0]?.commit.statusCheckRollup?.state),
-    checkCounts: githubCheckCounts(raw.commits.nodes[0]?.commit.statusCheckRollup?.contexts),
+    checkCounts,
+    ci: ciStatus(checkCounts, Array.isArray(nodes) ? nodes : []),
     isInMergeQueue: raw.isInMergeQueue,
     autoMerge: raw.autoMergeRequest !== null,
   }
