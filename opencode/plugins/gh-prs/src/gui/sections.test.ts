@@ -26,7 +26,10 @@ test("failing checks take priority over running checks in the navigation", () =>
   const sections = prSections({ checkList, comments: [], threads: [], reviews: [], changedFiles: 2 })
 
   expect(sections.find((section) => section.id === "checks")).toEqual({
-    id: "checks", label: "Checks", detail: "2 failing", tone: "failure",
+    id: "checks",
+    label: "Checks",
+    detail: "2 failing",
+    tone: "failure",
   })
   expect(sections.find((section) => section.id === "files")?.detail).toBe("2")
 })
@@ -37,7 +40,9 @@ test("the check label follows running checks through completion", () => {
   const pr = { checkList, comments: [], threads: [], reviews: [], changedFiles: 1 }
 
   const pending = prSections(pr).find((section) => section.id === "checks")
-  const completed = prSections({ ...pr, checkList: [{ name: "Build", state: "success" }, skipped] }).find((section) => section.id === "checks")
+  const completed = prSections({ ...pr, checkList: [{ name: "Build", state: "success" }, skipped] }).find(
+    (section) => section.id === "checks",
+  )
 
   expect(pending).toEqual({ id: "checks", label: "Checks", detail: "1 running", tone: "pending" })
   expect(completed).toEqual({ id: "checks", label: "Checks", detail: "2", tone: "muted" })
@@ -45,14 +50,39 @@ test("the check label follows running checks through completion", () => {
 
 test("conversation counts include text reviews but not empty approval events", () => {
   const author = { login: "reviewer", bot: false }
-  const comment = { author, body: "A question", createdAt: "2026-10-29T12:00:00Z", url: "https://github.com/o/r/pull/1#issuecomment-1" }
+  const comment = {
+    author,
+    body: "A question",
+    createdAt: "2026-10-29T12:00:00Z",
+    url: "https://github.com/o/r/pull/1#issuecomment-1",
+  }
   const reviews: PrDetail["reviews"] = [
     { author, body: "Approved with a note", state: "APPROVED", submittedAt: comment.createdAt, url: comment.url },
     { author, body: " \n ", state: "APPROVED", submittedAt: comment.createdAt, url: comment.url },
   ]
-  const threads = [{ path: "src/index.ts", line: 1, isResolved: false, isOutdated: false, diffHunk: "", comments: [comment, comment] }]
+  const threads = [
+    { path: "src/index.ts", line: 1, isResolved: false, isOutdated: false, diffHunk: "", comments: [comment, comment] },
+  ]
 
   const sections = prSections({ checkList: [], comments: [comment], threads, reviews, changedFiles: 1 })
 
   expect(sections.find((section) => section.id === "comments")?.detail).toBe("3")
+})
+
+test("failures beyond the loaded check page remain visible in section navigation", () => {
+  const pr = {
+    checkList: [{ name: "Build", state: "success" }] satisfies Check[],
+    checkCounts: { success: 150, failure: 2, pending: 0, skipped: 3, neutral: 0, unknown: 0 },
+    comments: [],
+    threads: [],
+    reviews: [],
+    changedFiles: 1,
+  }
+
+  expect(prSections(pr).find((section) => section.id === "checks")).toEqual({
+    id: "checks",
+    label: "Checks",
+    detail: "2 failing",
+    tone: "failure",
+  })
 })

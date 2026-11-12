@@ -126,25 +126,22 @@ function setup(ctx: Ctx) {
     },
   }))
 
-  ctx.add(
-    MenuItem,
-    (): MenuItem => {
-      const session = ctx.sessions.current()
-      const count = session ? (app.mentions(session)?.prs.length ?? 0) : 0
-      return {
-        menu: "session.panel",
-        id: "open",
-        title: ctx.t("title"),
-        icon: "github",
-        keybind: `${ctx.id}.open`,
-        description: count > 0 ? String(count) : undefined,
-        opened: !!session && ctx.layout.state(`${ctx.id}:${LIST_TAB}`, session) !== "closed",
-        run: () => {
-          if (session) app.openList(session)
-        },
-      }
-    },
-  )
+  ctx.add(MenuItem, (): MenuItem => {
+    const session = ctx.sessions.current()
+    const count = session ? (app.mentions(session)?.prs.length ?? 0) : 0
+    return {
+      menu: "session.panel",
+      id: "open",
+      title: ctx.t("title"),
+      icon: "github",
+      keybind: `${ctx.id}.open`,
+      description: count > 0 ? String(count) : undefined,
+      opened: !!session && ctx.layout.state(`${ctx.id}:${LIST_TAB}`, session) !== "closed",
+      run: () => {
+        if (session) app.openList(session)
+      },
+    }
+  })
 
   ctx.add(ComposerPill, {
     id: "pulls",
@@ -158,7 +155,13 @@ function setup(ctx: Ctx) {
       return {
         icon: "github",
         label: single ? `#${single.number}` : ctx.plural("pulls", prs.length),
-        tone: failing ? "danger" : pending ? "warning" : prs.every((pr) => pr.checks === "success" || pr.state !== "OPEN") ? "success" : undefined,
+        tone: failing
+          ? "danger"
+          : pending
+            ? "warning"
+            : prs.every((pr) => pr.checks === "success" || pr.state !== "OPEN")
+              ? "success"
+              : undefined,
         title: ctx.t("pill.title"),
         rows: [
           ...prs.map((pr) => ({

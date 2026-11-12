@@ -12,7 +12,7 @@ export const definition = Plugin.define({
     en: {
       title: "Pull requests",
       "command.open": "Show pull requests",
-      "command.open.description": "GitHub pull requests mentioned in this session",
+      "command.open.description": "Pull requests registered by this session",
       "command.refresh": "Refresh pull requests",
       "pill.title": "Pull requests in this session",
       "pill.all": "All pull requests",

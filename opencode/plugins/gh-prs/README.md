@@ -1,12 +1,39 @@
 # opencode-gh-prs
 
-Review the GitHub pull requests a session mentions without leaving OpenCode. Every
-`github.com/<owner>/<repo>/pull/<n>` link in the transcript, plus the PR of the session
-directory's current branch, gets a view with its description, diff, CI checks and
-conversation, and buttons to merge, approve or comment.
+Track the GitHub pull requests created for a session. The agent explicitly registers
+each PR; links in chat and the current branch do not add entries. You can ask the
+agent to register an existing PR when taking over its work.
+
+The Desktop list is a table with PR, CI, review, and work-status columns. CI comes
+from GitHub's current-commit rollup, with complete passed, failing, running/queued,
+and skipped/neutral counts. Click the CI column to open check details.
 
 All GitHub access goes through the `gh` CLI on the machine that runs the OpenCode server,
 so it uses your existing `gh auth login`.
+
+## Agent tools
+
+The plugin exposes native OpenCode tools in the `ghprs` Code Mode namespace. It is
+not a standalone MCP server. Each tool uses the calling session's ID, not an
+agent-supplied session ID.
+
+| Tool         | Effect                                                                                                |
+| ------------ | ----------------------------------------------------------------------------------------------------- |
+| `register`   | Add `owner`, `repo`, and `number` to this session's tracker. Repeated calls preserve its work status. |
+| `set_status` | Set `state` and a short `note` on a registered PR.                                                    |
+| `list`       | Read this session's registrations and work statuses without calling GitHub.                           |
+| `unregister` | Remove a registration and its status, without modifying GitHub.                                       |
+
+Work states are `agent-working`, `waiting-user`, `waiting-ci`, `blocked`, and `ready`.
+The note names the current work, blocker, or next action. A new registration has
+no reported work status. The table shows when each status was reported: “Agent
+working” is an agent's report, not a live heartbeat. “Ready” does not override CI
+or GitHub's merge requirements.
+
+Registrations and notes persist in plugin storage on the session's OpenCode server.
+They remain visible in the table when GitHub is unavailable. They are not GitHub
+comments, labels, or commit statuses. Install the updated plugin on both Desktop's
+local server and the VM to use the table with remote sessions.
 
 ## Desktop
 
@@ -44,7 +71,7 @@ so it uses your existing `gh auth login`.
 - On narrow screens (the web app on a phone, or any window under 768px) the panel becomes
   a **Pull requests** entry in the view menu, with larger tap targets and row actions always
   visible.
-- Open PRs refresh every 30 seconds while visible. The list refreshes after each agent turn.
+- Open PRs and the visible table refresh every 30 seconds. The list also refreshes after each completed agent turn.
 
 ## Terminal
 
@@ -76,10 +103,12 @@ To use a `gh` binary that is not on the server's `PATH`, load the plugin from `p
 ```sh
 bun install
 bun run dev        # rebuilds the GUI bundle on change; windows reload it
-bun test           # PR cards, section labels, check status, and conversation counts
-bun run typecheck
+bun run check      # Oxfmt, Oxlint, types, unit tests, browser tests, and GUI build
 ```
 
-Layout: `src/index.ts` (server: finds PR links, calls `gh`), `src/rpc.ts` (the contract),
+Run `bunx playwright install chromium` once for browser tests.
+
+Layout: `src/index.ts` (server tools and RPC), `src/tracker.ts` (durable session registrations),
+`src/tracker-tools.ts` (agent tool definitions), `src/rpc.ts` (the contract),
 `src/gui.tsx` + `src/gui/` (desktop), `src/tui.tsx` (terminal), `src/merge.ts` and
 `src/shared.ts` (shared logic).

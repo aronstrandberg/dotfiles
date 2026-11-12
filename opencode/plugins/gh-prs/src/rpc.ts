@@ -1,4 +1,6 @@
 import { Rpc } from "@opencode/plugin/rpc"
+import { parseCiCounts, type CiCounts } from "./ci.ts"
+import { parseTrackedPr } from "./work-status.ts"
 
 export interface PrRef {
   readonly owner: string
@@ -21,6 +23,7 @@ export interface PrSummary extends PrRef {
   readonly deletions: number
   readonly reviewDecision: ReviewDecision
   readonly checks: ChecksState
+  readonly checkCounts?: CiCounts
   readonly isInMergeQueue: boolean
   readonly autoMerge: boolean
   /** The PR of the session directory's current branch, not one the transcript links. */
@@ -84,6 +87,7 @@ export function parsePrSummary(value: unknown): PrSummary | null {
     deletions: integer("deletions", 0),
     reviewDecision,
     checks,
+    ...(field("checkCounts") === undefined ? {} : { checkCounts: parseCiCounts(field("checkCounts")) }),
     isInMergeQueue: boolean("isInMergeQueue"),
     autoMerge: boolean("autoMerge"),
     ...(branch === undefined ? {} : { branch }),
@@ -196,12 +200,22 @@ const prSummary = {
     additions: { type: "integer", minimum: 0 },
     deletions: { type: "integer", minimum: 0 },
     reviewDecision: {
-      anyOf: [
-        { type: "string", enum: ["APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED"] },
-        { type: "null" },
-      ],
+      anyOf: [{ type: "string", enum: ["APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED"] }, { type: "null" }],
     },
     checks: { type: "string", enum: ["success", "failure", "pending", "none"] },
+    checkCounts: {
+      type: "object",
+      properties: {
+        success: { type: "integer", minimum: 0 },
+        failure: { type: "integer", minimum: 0 },
+        pending: { type: "integer", minimum: 0 },
+        skipped: { type: "integer", minimum: 0 },
+        neutral: { type: "integer", minimum: 0 },
+        unknown: { type: "integer", minimum: 0 },
+      },
+      required: ["success", "failure", "pending", "skipped", "neutral", "unknown"],
+      additionalProperties: false,
+    },
     isInMergeQueue: { type: "boolean" },
     autoMerge: { type: "boolean" },
     branch: { type: "boolean" },
@@ -290,7 +304,10 @@ export const GhPrs = Rpc.define({
     act: {
       input: {
         type: "object",
-        properties: { ...ref, action: { type: "object", properties: { type: { type: "string" } }, required: ["type"] } },
+        properties: {
+          ...ref,
+          action: { type: "object", properties: { type: { type: "string" } }, required: ["type"] },
+        },
         required: ["owner", "repo", "number", "action"],
       },
       output: unknownOutput,
@@ -307,8 +324,24 @@ export function api(client: { rpc(definition: typeof GhPrs): unknown }) {
     (input: unknown, options?: { readonly signal?: AbortSignal }) => Promise<unknown>
   >
   return {
-    mentioned: (input: { sessionID: string; directory?: string; fresh?: boolean }) =>
-      rpc.mentioned(input) as Promise<{ prs: PrSummary[]; error?: string }>,
+    mentioned: async (input: { sessionID: string; directory?: string; fresh?: boolean }) => {
+      const value = await rpc.mentioned(input)
+      if (typeof value !== "object" || value === null) throw new TypeError("Invalid PR tracker response")
+      const prs: unknown = Reflect.get(value, "prs")
+      const tracked: unknown = Reflect.get(value, "tracked")
+      const error: unknown = Reflect.get(value, "error")
+      if (!Array.isArray(prs) || !Array.isArray(tracked))
+        throw new TypeError("Update the gh-prs plugin on this session's server to use the PR tracker")
+      if (error !== undefined && typeof error !== "string") throw new TypeError("Invalid PR tracker error")
+      return {
+        prs: prs.flatMap((pr) => {
+          const parsed = parsePrSummary(pr)
+          return parsed ? [parsed] : []
+        }),
+        tracked: tracked.map(parseTrackedPr),
+        error,
+      }
+    },
     resolve: async (input: { reference: string; directory?: string }, signal?: AbortSignal) =>
       parsePrSummary(await rpc.resolve(input, { signal })),
     cardLease: async (input: { sessionID: string; token: string }, signal?: AbortSignal) =>

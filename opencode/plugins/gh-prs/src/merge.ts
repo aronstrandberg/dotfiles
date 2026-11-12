@@ -21,14 +21,24 @@ export function mergeChoices(pr: PrDetail): { primary?: MergeChoice; menu: Merge
   const ready = ["CLEAN", "UNSTABLE", "HAS_HOOKS"].includes(pr.mergeStateStatus)
   const merge = (method: PrDetail["defaultMergeMethod"] | undefined, auto: boolean, admin = false): MergeChoice => {
     const queued = pr.mergeQueue && !admin
-    const what = queued ? (auto ? "Merge when ready (queue)" : "Add to merge queue") : method ? MERGE_METHOD_LABEL[method] : "Merge"
+    const what = queued
+      ? auto
+        ? "Merge when ready (queue)"
+        : "Add to merge queue"
+      : method
+        ? MERGE_METHOD_LABEL[method]
+        : "Merge"
     const label = admin ? `${what} as admin` : auto && !queued ? `Auto-merge: ${what.toLowerCase()}` : what
     return {
       label,
       icon: admin ? "warning" : "check",
       action: { type: "merge", method: queued ? undefined : method, auto, admin },
       pending: auto ? "Enabling auto-merge…" : queued ? "Adding to the merge queue…" : "Merging…",
-      confirm: { title: `${label}: #${pr.number}?`, confirm: admin ? "Bypass and merge" : auto ? "Enable" : "Merge", danger: admin },
+      confirm: {
+        title: `${label}: #${pr.number}?`,
+        confirm: admin ? "Bypass and merge" : auto ? "Enable" : "Merge",
+        danger: admin,
+      },
     }
   }
   const draftToggle: MergeChoice = pr.isDraft
@@ -56,7 +66,10 @@ export function mergeChoices(pr: PrDetail): { primary?: MergeChoice; menu: Merge
       menu.push({ group: "When requirements pass", items: pr.mergeMethods.map((method) => merge(method, true)) })
     }
     if (pr.viewerPermission === "ADMIN")
-      menu.push({ group: "Bypass branch protection", items: pr.mergeMethods.map((method) => merge(method, false, true)) })
+      menu.push({
+        group: "Bypass branch protection",
+        items: pr.mergeMethods.map((method) => merge(method, false, true)),
+      })
   }
   menu.push("separator")
   if (pr.autoMerge) menu.push(disableAuto)

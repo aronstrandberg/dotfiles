@@ -39,7 +39,10 @@ function syntaxStyle(context: Context) {
   const theme = context.theme
   const syntax = theme.syntax
   const markdown = theme.markdown
-  const rule = (scope: string[], foreground: RGBA, style: Record<string, unknown> = {}) => ({ scope, style: { foreground, ...style } })
+  const rule = (scope: string[], foreground: RGBA, style: Record<string, unknown> = {}) => ({
+    scope,
+    style: { foreground, ...style },
+  })
   return SyntaxStyle.fromTheme(
     [
       rule(["default"], theme.text.base),
@@ -52,7 +55,11 @@ function syntaxStyle(context: Context) {
       rule(["function", "function.call", "function.method", "constructor"], syntax.function),
       rule(["type", "module", "class", "namespace"], syntax.type),
       rule(["punctuation", "punctuation.bracket"], syntax.punctuation),
-      rule(["markup.heading", "markup.heading.1", "markup.heading.2", "markup.heading.3", "markup.heading.4"], markdown.heading, { bold: true }),
+      rule(
+        ["markup.heading", "markup.heading.1", "markup.heading.2", "markup.heading.3", "markup.heading.4"],
+        markdown.heading,
+        { bold: true },
+      ),
       rule(["markup.bold", "markup.strong"], markdown.strong, { bold: true }),
       rule(["markup.italic"], markdown.emphasis, { italic: true }),
       rule(["markup.list"], markdown.listItem),
@@ -80,7 +87,9 @@ function openExternal(context: Context, url: string) {
 export default Plugin.define({
   id: "ghprs.tui",
   setup(context) {
-    const [mentions, setMentions] = createStore<Record<string, { prs: PrSummary[]; error?: string; loading: boolean }>>({})
+    const [mentions, setMentions] = createStore<Record<string, { prs: PrSummary[]; error?: string; loading: boolean }>>(
+      {},
+    )
     const [view, setView] = createSignal<View>({ kind: "list" })
     const [page, setPage] = createSignal<Page>("overview")
     const client = () => api(context.client)
@@ -92,7 +101,12 @@ export default Plugin.define({
         .mentioned({ sessionID, directory: directoryOf(sessionID), fresh })
         .then(
           (result) => setMentions(sessionID, { prs: result.prs, error: result.error, loading: false }),
-          (error) => setMentions(sessionID, (previous) => ({ prs: previous?.prs ?? [], error: errorText(error), loading: false })),
+          (error) =>
+            setMentions(sessionID, (previous) => ({
+              prs: previous?.prs ?? [],
+              error: errorText(error),
+              loading: false,
+            })),
         )
     }
     const loaded = new Set<string>()
@@ -124,7 +138,14 @@ export default Plugin.define({
       append: "sidebar.content",
       render: (input) => {
         createEffect(() => ensure(input.sessionID))
-        return <Sidebar context={context} prs={mentions[input.sessionID]?.prs ?? []} onOpen={(ref) => openPanel({ kind: "pr", ref })} onList={() => openPanel({ kind: "list" })} />
+        return (
+          <Sidebar
+            context={context}
+            prs={mentions[input.sessionID]?.prs ?? []}
+            onOpen={(ref) => openPanel({ kind: "pr", ref })}
+            onList={() => openPanel({ kind: "list" })}
+          />
+        )
       },
     })
 
@@ -160,7 +181,7 @@ export default Plugin.define({
             {
               id: "ghprs.open",
               title: "Show pull requests",
-              description: "GitHub pull requests mentioned in this session",
+              description: "Pull requests registered by this session",
               group: "GitHub",
               palette: true,
               slash: { name: "prs" },
@@ -212,19 +233,36 @@ function Sidebar(props: { context: Context; prs: PrSummary[]; onOpen: (ref: PrRe
   return (
     <Show when={props.prs.length > 0}>
       <box flexShrink={0}>
-        <text fg={theme().text.base} attributes={TextAttributes.BOLD} onMouseUp={(event) => event.button === MouseButton.LEFT && props.onList()}>
+        <text
+          fg={theme().text.base}
+          attributes={TextAttributes.BOLD}
+          onMouseUp={(event) => event.button === MouseButton.LEFT && props.onList()}
+        >
           Pull requests <span style={{ fg: theme().text.muted }}>/prs</span>
         </text>
         <For each={props.prs.slice(0, SIDEBAR_ROWS)}>
           {(pr) => (
-            <box flexDirection="row" gap={1} onMouseUp={(event) => event.button === MouseButton.LEFT && props.onOpen(pr)}>
-              <text fg={pr.state === "OPEN" ? checksColor(props.context, pr.checks) : theme().text.muted} flexShrink={0}>
+            <box
+              flexDirection="row"
+              gap={1}
+              onMouseUp={(event) => event.button === MouseButton.LEFT && props.onOpen(pr)}
+            >
+              <text
+                fg={pr.state === "OPEN" ? checksColor(props.context, pr.checks) : theme().text.muted}
+                flexShrink={0}
+              >
                 {prGlyph(pr)}
               </text>
               <text fg={theme().text.muted} flexShrink={0}>
                 #{pr.number}
               </text>
-              <text fg={pr.state === "OPEN" ? theme().text.base : theme().text.muted} wrapMode="none" truncate flexGrow={1} minWidth={0}>
+              <text
+                fg={pr.state === "OPEN" ? theme().text.base : theme().text.muted}
+                wrapMode="none"
+                truncate
+                flexGrow={1}
+                minWidth={0}
+              >
                 {pr.title}
               </text>
             </box>
@@ -254,9 +292,15 @@ function PanelView(props: {
 }) {
   createEffect(() => props.ensure())
   const theme = () => props.context.theme
-  const surface = () => (props.panel.presentation === "panel" ? theme().background.raised.base : theme().background.base)
+  const surface = () =>
+    props.panel.presentation === "panel" ? theme().background.raised.base : theme().background.base
   return (
-    <box width="100%" height="100%" backgroundColor={surface()} paddingTop={props.panel.presentation === "panel" ? 1 : 0}>
+    <box
+      width="100%"
+      height="100%"
+      backgroundColor={surface()}
+      paddingTop={props.panel.presentation === "panel" ? 1 : 0}
+    >
       <Switch>
         <Match when={props.view.kind === "pr" && props.view}>
           {(current: () => Extract<View, { kind: "pr" }>) => (
@@ -273,7 +317,13 @@ function PanelView(props: {
           )}
         </Match>
         <Match when={true}>
-          <ListView context={props.context} panel={props.panel} mentions={props.mentions} reload={props.reload} onOpen={(ref) => props.setView({ kind: "pr", ref })} />
+          <ListView
+            context={props.context}
+            panel={props.panel}
+            mentions={props.mentions}
+            reload={props.reload}
+            onOpen={(ref) => props.setView({ kind: "pr", ref })}
+          />
         </Match>
       </Switch>
     </box>
@@ -309,12 +359,27 @@ function ListView(props: {
   const prs = () => props.mentions?.prs ?? []
   const [index, setIndex] = createSignal(0)
   const clamp = (value: number) => Math.max(0, Math.min(prs().length - 1, value))
-  createEffect(on(() => prs().length, () => setIndex((value) => clamp(value))))
+  createEffect(
+    on(
+      () => prs().length,
+      () => setIndex((value) => clamp(value)),
+    ),
+  )
 
   props.context.keymap.layer(() => ({
     commands: [
-      { title: "Next pull request", group: "GitHub", bind: "j,down", run: () => void setIndex((value) => clamp(value + 1)) },
-      { title: "Previous pull request", group: "GitHub", bind: "k,up", run: () => void setIndex((value) => clamp(value - 1)) },
+      {
+        title: "Next pull request",
+        group: "GitHub",
+        bind: "j,down",
+        run: () => void setIndex((value) => clamp(value + 1)),
+      },
+      {
+        title: "Previous pull request",
+        group: "GitHub",
+        bind: "k,up",
+        run: () => void setIndex((value) => clamp(value - 1)),
+      },
       {
         title: "Open pull request",
         group: "GitHub",
@@ -351,7 +416,9 @@ function ListView(props: {
           fallback={
             <box paddingLeft={2} paddingRight={1}>
               <text fg={theme().text.muted}>
-                {props.mentions?.loading ? "Loading…" : "No pull requests yet. GitHub PR links in this session show up here."}
+                {props.mentions?.loading
+                  ? "Loading…"
+                  : "No registered pull requests. Ask the agent to register a PR for this session."}
               </text>
             </box>
           }
@@ -374,10 +441,20 @@ function ListView(props: {
                     <text fg={selected() ? theme().text.base : theme().background.raised.high} flexShrink={0}>
                       {selected() ? "›" : " "}
                     </text>
-                    <text fg={pr.state === "OPEN" ? checksColor(props.context, pr.checks) : theme().text.muted} flexShrink={0}>
+                    <text
+                      fg={pr.state === "OPEN" ? checksColor(props.context, pr.checks) : theme().text.muted}
+                      flexShrink={0}
+                    >
                       {prGlyph(pr)}
                     </text>
-                    <text fg={theme().text.base} wrapMode="none" truncate flexGrow={1} minWidth={0} attributes={selected() ? TextAttributes.BOLD : 0}>
+                    <text
+                      fg={theme().text.base}
+                      wrapMode="none"
+                      truncate
+                      flexGrow={1}
+                      minWidth={0}
+                      attributes={selected() ? TextAttributes.BOLD : 0}
+                    >
                       {pr.title}
                     </text>
                   </box>
@@ -396,7 +473,16 @@ function ListView(props: {
           </For>
         </Show>
       </scrollbox>
-      <Footer context={props.context} hints={[["↵", "open"], ["j/k", "move"], ["r", "refresh"], ["f", "full screen"], ["esc", "close"]]} />
+      <Footer
+        context={props.context}
+        hints={[
+          ["↵", "open"],
+          ["j/k", "move"],
+          ["r", "refresh"],
+          ["f", "full screen"],
+          ["esc", "close"],
+        ]}
+      />
     </box>
   )
 }
@@ -442,16 +528,26 @@ function PrView(props: {
       setFilesError(errorText(cause))
     }
   }
-  createEffect(on(() => prKey(props.target), () => {
-    setDetail(undefined)
-    setFiles(undefined)
-    setFileIndex(0)
-    void refresh()
-  }))
+  createEffect(
+    on(
+      () => prKey(props.target),
+      () => {
+        setDetail(undefined)
+        setFiles(undefined)
+        setFileIndex(0)
+        void refresh()
+      },
+    ),
+  )
   createEffect(() => {
     if (props.page === "files" && !untrack(files)) void loadFiles()
   })
-  createEffect(on(() => [props.page, fileIndex()], () => scroll?.scrollTo(0)))
+  createEffect(
+    on(
+      () => [props.page, fileIndex()],
+      () => scroll?.scrollTo(0),
+    ),
+  )
   const poll = setInterval(() => {
     if (!busy() && !loading() && detail()?.state === "OPEN") void refresh()
   }, POLL_MS)
@@ -466,7 +562,12 @@ function PrView(props: {
       void refresh()
       props.onChanged()
     } catch (cause) {
-      context.ui.toast.show({ title: "GitHub refused the request", message: errorText(cause), variant: "error", duration: 10_000 })
+      context.ui.toast.show({
+        title: "GitHub refused the request",
+        message: errorText(cause),
+        variant: "error",
+        duration: 10_000,
+      })
     } finally {
       setBusy(false)
     }
@@ -490,13 +591,16 @@ function PrView(props: {
     if (!pr || busy()) return
     const { primary, menu } = mergeChoices(pr)
     const options: { title: string; value: MergeChoice; category?: string; description?: string }[] = []
-    if (primary) options.push({ title: primary.label, value: primary, category: "Suggested", description: mergeStatusText(pr) })
+    if (primary)
+      options.push({ title: primary.label, value: primary, category: "Suggested", description: mergeStatusText(pr) })
     for (const entry of menu) {
       if (entry === "separator") continue
-      if ("group" in entry) options.push(...entry.items.map((item) => ({ title: item.label, value: item, category: entry.group })))
+      if ("group" in entry)
+        options.push(...entry.items.map((item) => ({ title: item.label, value: item, category: entry.group })))
       else if (entry.label !== primary?.label) options.push({ title: entry.label, value: entry, category: "Actions" })
     }
-    if (options.length === 0) return context.ui.toast.show({ message: `#${pr.number} is ${pr.state.toLowerCase()}`, variant: "info" })
+    if (options.length === 0)
+      return context.ui.toast.show({ message: `#${pr.number} is ${pr.state.toLowerCase()}`, variant: "info" })
     const picked = await context.ui.dialog.select({ title: `Merge #${pr.number}`, options })
     if (picked) await choose(picked)
   }
@@ -504,7 +608,11 @@ function PrView(props: {
   async function approve() {
     const pr = detail()
     if (!pr || pr.state !== "OPEN") return
-    const ok = await context.ui.dialog.confirm({ title: `Approve #${pr.number}?`, message: pr.title, label: { confirm: "Approve" } })
+    const ok = await context.ui.dialog.confirm({
+      title: `Approve #${pr.number}?`,
+      message: pr.title,
+      label: { confirm: "Approve" },
+    })
     if (ok) await perform({ type: "approve" }, "Approving…")
   }
 
@@ -518,7 +626,10 @@ function PrView(props: {
   async function requestChanges() {
     const pr = detail()
     if (!pr || pr.state !== "OPEN") return
-    const body = await context.ui.dialog.prompt({ title: `Request changes on #${pr.number}`, placeholder: "What needs to change?" })
+    const body = await context.ui.dialog.prompt({
+      title: `Request changes on #${pr.number}`,
+      placeholder: "What needs to change?",
+    })
     if (body?.trim()) await perform({ type: "request-changes", body }, "Requesting changes…")
   }
 
@@ -528,12 +639,17 @@ function PrView(props: {
     const picked = await context.ui.dialog.select({
       title: "Changed files",
       current: fileIndex(),
-      options: list.map((file, index) => ({ title: file.filename, value: index, description: `+${file.additions} −${file.deletions}` })),
+      options: list.map((file, index) => ({
+        title: file.filename,
+        value: index,
+        description: `+${file.additions} −${file.deletions}`,
+      })),
     })
     if (picked !== undefined) setFileIndex(picked)
   }
 
-  const cyclePage = (delta: number) => props.setPage(PAGES[(PAGES.indexOf(props.page) + delta + PAGES.length) % PAGES.length]!)
+  const cyclePage = (delta: number) =>
+    props.setPage(PAGES[(PAGES.indexOf(props.page) + delta + PAGES.length) % PAGES.length]!)
   const moveFile = (delta: number) => {
     const count = files()?.files.length ?? 0
     if (count > 0) setFileIndex((value) => Math.max(0, Math.min(count - 1, value + delta)))
@@ -556,22 +672,56 @@ function PrView(props: {
       { title: "Half page down", group: "GitHub", bind: "ctrl+d", run: () => void page(0.5) },
       { title: "Half page up", group: "GitHub", bind: "ctrl+u", run: () => void page(-0.5) },
       { title: "Top", group: "GitHub", bind: "gg,home", run: () => void scroll?.scrollTo(0) },
-      { title: "Bottom", group: "GitHub", bind: "shift+g,end", run: () => void (scroll && scroll.scrollTo(scroll.scrollHeight)) },
-      { title: "Next file", group: "GitHub", bind: "n,]", enabled: () => props.page === "files", run: () => moveFile(1) },
-      { title: "Previous file", group: "GitHub", bind: "p,[", enabled: () => props.page === "files", run: () => moveFile(-1) },
-      { title: "Pick file", group: "GitHub", bind: "/", enabled: () => props.page === "files", run: () => void pickFile() },
+      {
+        title: "Bottom",
+        group: "GitHub",
+        bind: "shift+g,end",
+        run: () => void (scroll && scroll.scrollTo(scroll.scrollHeight)),
+      },
+      {
+        title: "Next file",
+        group: "GitHub",
+        bind: "n,]",
+        enabled: () => props.page === "files",
+        run: () => moveFile(1),
+      },
+      {
+        title: "Previous file",
+        group: "GitHub",
+        bind: "p,[",
+        enabled: () => props.page === "files",
+        run: () => moveFile(-1),
+      },
+      {
+        title: "Pick file",
+        group: "GitHub",
+        bind: "/",
+        enabled: () => props.page === "files",
+        run: () => void pickFile(),
+      },
       { title: "Merge…", group: "GitHub", bind: "m", run: () => void mergeMenu() },
       { title: "Approve", group: "GitHub", bind: "a", run: () => void approve() },
       { title: "Comment", group: "GitHub", bind: "c", run: () => void comment() },
       { title: "Request changes", group: "GitHub", bind: "shift+r", run: () => void requestChanges() },
-      { title: "Open in browser", group: "GitHub", bind: "o", run: () => openExternal(context, detail()?.url ?? `https://github.com/${props.target.owner}/${props.target.repo}/pull/${props.target.number}`) },
+      {
+        title: "Open in browser",
+        group: "GitHub",
+        bind: "o",
+        run: () =>
+          openExternal(
+            context,
+            detail()?.url ??
+              `https://github.com/${props.target.owner}/${props.target.repo}/pull/${props.target.number}`,
+          ),
+      },
       {
         title: "Copy link",
         group: "GitHub",
         bind: "y",
         run: () => {
           const url = detail()?.url
-          if (url && context.renderer.copyToClipboardOSC52(url)) context.ui.toast.show({ message: "Link copied", variant: "success" })
+          if (url && context.renderer.copyToClipboardOSC52(url))
+            context.ui.toast.show({ message: "Link copied", variant: "success" })
         },
       },
       { title: "Refresh", group: "GitHub", bind: "r", run: () => void refresh() },
@@ -590,8 +740,14 @@ function PrView(props: {
           const count = () => {
             const pr = detail()
             if (!pr) return ""
-            if (id === "checks") return counts().failure ? ` ${counts().failure}✗` : counts().pending ? ` ${counts().pending}●` : ` ${pr.checkList.length}`
-            if (id === "comments") return ` ${pr.comments.length + pr.threads.length + pr.reviews.filter((review) => review.body.trim()).length}`
+            if (id === "checks")
+              return counts().failure
+                ? ` ${counts().failure}✗`
+                : counts().pending
+                  ? ` ${counts().pending}●`
+                  : ` ${pr.checkList.length}`
+            if (id === "comments")
+              return ` ${pr.comments.length + pr.threads.length + pr.reviews.filter((review) => review.body.trim()).length}`
             if (id === "files") return ` ${pr.changedFiles}`
             return ""
           }
@@ -604,7 +760,9 @@ function PrView(props: {
             >
               <span style={{ fg: muted() }}>{index() + 1} </span>
               {id[0]!.toUpperCase() + id.slice(1)}
-              <span style={{ fg: id === "checks" && counts().failure ? theme().text.feedback.error.base : muted() }}>{count()}</span>
+              <span style={{ fg: id === "checks" && counts().failure ? theme().text.feedback.error.base : muted() }}>
+                {count()}
+              </span>
             </text>
           )
         }}
@@ -618,7 +776,9 @@ function PrView(props: {
         when={detail()}
         fallback={
           <box paddingLeft={2} paddingRight={1} flexGrow={1}>
-            <text fg={error() ? theme().text.feedback.error.base : muted()}>{error() ?? `Loading ${prKey(props.target)}…`}</text>
+            <text fg={error() ? theme().text.feedback.error.base : muted()}>
+              {error() ?? `Loading ${prKey(props.target)}…`}
+            </text>
           </box>
         }
       >
@@ -629,7 +789,16 @@ function PrView(props: {
                 {pr().title} <span style={{ fg: muted() }}>#{pr().number}</span>
               </text>
               <text fg={muted()} wrapMode="none" truncate>
-                <span style={{ fg: pr().state === "MERGED" ? theme().text.feedback.info.base : pr().state === "CLOSED" ? theme().text.feedback.error.base : theme().text.feedback.success.base }}>
+                <span
+                  style={{
+                    fg:
+                      pr().state === "MERGED"
+                        ? theme().text.feedback.info.base
+                        : pr().state === "CLOSED"
+                          ? theme().text.feedback.error.base
+                          : theme().text.feedback.success.base,
+                  }}
+                >
                   {stateLabel(pr())}
                 </span>
                 {` · ${pr().author} · ${pr().headRefName} → ${pr().baseRefName} · `}
@@ -637,9 +806,19 @@ function PrView(props: {
                 <span style={{ fg: theme().diff.text.removed }}> −{pr().deletions}</span>
                 {loading() ? " · refreshing…" : ` · ${relativeTime(pr().updatedAt)}`}
               </text>
-              <text fg={pr().mergeable === "CONFLICTING" ? theme().text.feedback.error.base : ["CLEAN", "HAS_HOOKS"].includes(pr().mergeStateStatus) || pr().autoMerge || pr().isInMergeQueue ? theme().text.feedback.success.base : theme().text.feedback.warning.base}>
+              <text
+                fg={
+                  pr().mergeable === "CONFLICTING"
+                    ? theme().text.feedback.error.base
+                    : ["CLEAN", "HAS_HOOKS"].includes(pr().mergeStateStatus) || pr().autoMerge || pr().isInMergeQueue
+                      ? theme().text.feedback.success.base
+                      : theme().text.feedback.warning.base
+                }
+              >
                 {mergeStatusText(pr())}
-                <span style={{ fg: muted() }}>{mergeChoices(pr()).primary ? `  m: ${mergeChoices(pr()).primary!.label.toLowerCase()}…` : ""}</span>
+                <span style={{ fg: muted() }}>
+                  {mergeChoices(pr()).primary ? `  m: ${mergeChoices(pr()).primary!.label.toLowerCase()}…` : ""}
+                </span>
               </text>
               <Show when={error()}>
                 <text fg={theme().text.feedback.error.base}>Refresh failed: {error()}</text>
@@ -648,7 +827,13 @@ function PrView(props: {
             <box height={1} flexShrink={0} />
             <Tabs />
             <box height={1} flexShrink={0} />
-            <scrollbox ref={(element: ScrollBoxRenderable) => (scroll = element)} flexGrow={1} minHeight={0} verticalScrollbarOptions={{ visible: false }} horizontalScrollbarOptions={{ visible: false }}>
+            <scrollbox
+              ref={(element: ScrollBoxRenderable) => (scroll = element)}
+              flexGrow={1}
+              minHeight={0}
+              verticalScrollbarOptions={{ visible: false }}
+              horizontalScrollbarOptions={{ visible: false }}
+            >
               <Switch>
                 <Match when={props.page === "overview"}>
                   <Overview context={context} pr={pr()} style={props.style} />
@@ -660,7 +845,13 @@ function PrView(props: {
                   <Comments context={context} pr={pr()} style={props.style} />
                 </Match>
                 <Match when={props.page === "files"}>
-                  <Files context={context} files={files()} error={filesError()} index={fileIndex()} style={props.style} />
+                  <Files
+                    context={context}
+                    files={files()}
+                    error={filesError()}
+                    index={fileIndex()}
+                    style={props.style}
+                  />
                 </Match>
               </Switch>
             </scrollbox>
@@ -671,8 +862,24 @@ function PrView(props: {
         context={context}
         hints={
           props.page === "files"
-            ? [["n/p", "file"], ["/", "pick"], ["m", "merge"], ["a", "approve"], ["c", "comment"], ["o", "browser"], ["esc", "back"]]
-            : [["1-4", "tabs"], ["m", "merge"], ["a", "approve"], ["c", "comment"], ["o", "browser"], ["r", "refresh"], ["esc", "back"]]
+            ? [
+                ["n/p", "file"],
+                ["/", "pick"],
+                ["m", "merge"],
+                ["a", "approve"],
+                ["c", "comment"],
+                ["o", "browser"],
+                ["esc", "back"],
+              ]
+            : [
+                ["1-4", "tabs"],
+                ["m", "merge"],
+                ["a", "approve"],
+                ["c", "comment"],
+                ["o", "browser"],
+                ["r", "refresh"],
+                ["esc", "back"],
+              ]
         }
       />
     </box>
@@ -724,7 +931,9 @@ function Overview(props: { context: Context; pr: PrDetail; style?: SyntaxStyle }
 function Checks(props: { context: Context; pr: PrDetail }) {
   const theme = () => props.context.theme
   const counts = createMemo(() => checkCounts(props.pr.checkList))
-  const visible = createMemo(() => sortChecks(props.pr.checkList).filter((check) => check.state !== "skipped" && check.state !== "neutral"))
+  const visible = createMemo(() =>
+    sortChecks(props.pr.checkList).filter((check) => check.state !== "skipped" && check.state !== "neutral"),
+  )
   return (
     <box paddingLeft={2} paddingRight={1}>
       <text fg={theme().text.muted}>
@@ -741,9 +950,20 @@ function Checks(props: { context: Context; pr: PrDetail }) {
               <text fg={checksColor(props.context, check.state)} flexShrink={0}>
                 {checksGlyph(check.state)}
               </text>
-              <text fg={check.state === "success" ? theme().text.muted : theme().text.base} wrapMode="none" truncate flexGrow={1} minWidth={0}>
+              <text
+                fg={check.state === "success" ? theme().text.muted : theme().text.base}
+                wrapMode="none"
+                truncate
+                flexGrow={1}
+                minWidth={0}
+              >
                 {check.name}
-                <span style={{ fg: theme().text.muted }}>{[check.workflow, check.description, duration(check)].filter(Boolean).map((part) => ` · ${part}`).join("")}</span>
+                <span style={{ fg: theme().text.muted }}>
+                  {[check.workflow, check.description, duration(check)]
+                    .filter(Boolean)
+                    .map((part) => ` · ${part}`)
+                    .join("")}
+                </span>
               </text>
             </box>
           )}
@@ -758,14 +978,25 @@ function Comments(props: { context: Context; pr: PrDetail; style?: SyntaxStyle }
   type Entry = { at: string; author: string; bot: boolean; heading: string; body: string; hunk?: string }
   const entries = createMemo(() => {
     const list: Entry[] = [
-      ...props.pr.comments.map((comment) => ({ at: comment.createdAt, author: comment.author.login, bot: comment.author.bot, heading: "commented", body: comment.body })),
+      ...props.pr.comments.map((comment) => ({
+        at: comment.createdAt,
+        author: comment.author.login,
+        bot: comment.author.bot,
+        heading: "commented",
+        body: comment.body,
+      })),
       ...props.pr.reviews
         .filter((review) => review.body.trim() || review.state === "APPROVED" || review.state === "CHANGES_REQUESTED")
         .map((review) => ({
           at: review.submittedAt,
           author: review.author.login,
           bot: review.author.bot,
-          heading: review.state === "APPROVED" ? "approved" : review.state === "CHANGES_REQUESTED" ? "requested changes" : "reviewed",
+          heading:
+            review.state === "APPROVED"
+              ? "approved"
+              : review.state === "CHANGES_REQUESTED"
+                ? "requested changes"
+                : "reviewed",
           body: review.body,
         })),
       ...props.pr.threads
@@ -775,7 +1006,9 @@ function Comments(props: { context: Context; pr: PrDetail; style?: SyntaxStyle }
           author: thread.comments[0]!.author.login,
           bot: thread.comments[0]!.author.bot,
           heading: `on ${thread.path}${thread.line ? `:${thread.line}` : ""}${thread.isOutdated ? " (outdated)" : ""}`,
-          body: thread.comments.map((comment, index) => (index === 0 ? comment.body : `**${comment.author.login}:** ${comment.body}`)).join("\n\n"),
+          body: thread.comments
+            .map((comment, index) => (index === 0 ? comment.body : `**${comment.author.login}:** ${comment.body}`))
+            .join("\n\n"),
           hunk: thread.diffHunk.split("\n").slice(-6).join("\n"),
         })),
     ]
@@ -784,7 +1017,10 @@ function Comments(props: { context: Context; pr: PrDetail; style?: SyntaxStyle }
   const resolved = () => props.pr.threads.filter((thread) => thread.isResolved).length
   return (
     <box paddingLeft={2} paddingRight={1}>
-      <Show when={entries().length > 0} fallback={<text fg={theme().text.muted}>No conversation yet. Press c to comment.</text>}>
+      <Show
+        when={entries().length > 0}
+        fallback={<text fg={theme().text.muted}>No conversation yet. Press c to comment.</text>}
+      >
         <For each={entries()}>
           {(entry) => (
             <box paddingBottom={1}>
@@ -813,7 +1049,13 @@ function Comments(props: { context: Context; pr: PrDetail; style?: SyntaxStyle }
   )
 }
 
-function Files(props: { context: Context; files?: { files: PrFile[]; truncated: boolean }; error?: string; index: number; style?: SyntaxStyle }) {
+function Files(props: {
+  context: Context
+  files?: { files: PrFile[]; truncated: boolean }
+  error?: string
+  index: number
+  style?: SyntaxStyle
+}) {
   const theme = () => props.context.theme
   const file = () => props.files?.files[props.index]
   return (
@@ -836,7 +1078,14 @@ function Files(props: { context: Context; files?: { files: PrFile[]; truncated: 
                 <text fg={theme().text.muted} flexShrink={0}>
                   {props.index + 1}/{props.files!.files.length}
                 </text>
-                <text fg={theme().text.base} wrapMode="none" truncate flexGrow={1} minWidth={0} attributes={TextAttributes.BOLD}>
+                <text
+                  fg={theme().text.base}
+                  wrapMode="none"
+                  truncate
+                  flexGrow={1}
+                  minWidth={0}
+                  attributes={TextAttributes.BOLD}
+                >
                   {current().previousFilename ? `${current().previousFilename} → ` : ""}
                   {current().filename}
                 </text>
@@ -851,7 +1100,9 @@ function Files(props: { context: Context; files?: { files: PrFile[]; truncated: 
                 when={current().patch}
                 fallback={
                   <box paddingLeft={2}>
-                    <text fg={theme().text.muted}>{current().status === "removed" ? "File deleted." : "No textual diff (binary or too large)."}</text>
+                    <text fg={theme().text.muted}>
+                      {current().status === "removed" ? "File deleted." : "No textual diff (binary or too large)."}
+                    </text>
                   </box>
                 }
               >

@@ -2,7 +2,10 @@ import { onCleanup, type Accessor } from "solid-js"
 import { createKeyed } from "@opencode/plugin/gui"
 
 /** Whether this GUI can register and render `gh-pr` code blocks. */
-export function supportsPrCardRenderer<Registry>(platform: string, registry: Registry | undefined): registry is Registry {
+export function supportsPrCardRenderer<Registry>(
+  platform: string,
+  registry: Registry | undefined,
+): registry is Registry {
   return platform === "desktop" && registry !== undefined
 }
 
@@ -28,7 +31,10 @@ export interface PrCardLeaseSession<Client> {
 
 /** Client operations used by the GUI lease lifecycle. */
 export interface PrCardLeaseApi {
-  lease(input: { readonly sessionID: string; readonly token: string }, signal: AbortSignal): Promise<{ readonly expiresAt: number }>
+  lease(
+    input: { readonly sessionID: string; readonly token: string },
+    signal: AbortSignal,
+  ): Promise<{ readonly expiresAt: number }>
   release(input: { readonly sessionID: string; readonly token: string }): Promise<{ readonly released: boolean }>
 }
 
@@ -72,7 +78,8 @@ export function maintainPrCardLease<Client>(options: PrCardLeaseLifecycleOptions
         stopped = true
         stop()
         controller.abort()
-        const release = () => api.release({ sessionID: session.id, token: options.token }).then(() => {}, options.onError)
+        const release = () =>
+          api.release({ sessionID: session.id, token: options.token }).then(() => {}, options.onError)
         if (running) void running.then(release)
         else void release()
       })

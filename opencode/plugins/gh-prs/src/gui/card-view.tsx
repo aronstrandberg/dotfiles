@@ -69,7 +69,11 @@ export function PrCardBlock(props: PrCardBlockProps) {
     if (value.type !== "fallback") return value
     return failed(
       lookup.error ??
-        new Error(lookup.latest === null ? "GitHub pull request was not found" : "GitHub pull request lookup returned no result"),
+        new Error(
+          lookup.latest === null
+            ? "GitHub pull request was not found"
+            : "GitHub pull request lookup returned no result",
+        ),
     )
   })
   const resolved = createMemo(() => {

@@ -2,7 +2,11 @@
   "name": "opencode-gh-prs",
   "version": "0.1.0",
   "private": true,
-  "description": "Review the GitHub pull requests a session mentions without leaving OpenCode: description, diff, CI checks, comments, merge.",
+  "description": "Track a session's registered GitHub PRs, CI checks, and agent-reported work status in OpenCode.",
+  "files": [
+    "src",
+    "dist"
+  ],
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
@@ -10,12 +14,13 @@
     "./gui-experimental": "./dist/gui-experimental.cjs",
     "./rpc": "./src/rpc.ts"
   },
-  "files": [
-    "src",
-    "dist"
-  ],
   "scripts": {
-    "test": "bun test",
+    "test": "bun test ./src",
+    "test:browser": "playwright test",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run test && bun run test:browser && bun run build",
     "build": "bun --bun vite build",
     "dev": "bun --bun vite build --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.tui.json"
@@ -27,7 +32,10 @@
     "@opencode/theme": "0.0.0-dev-639",
     "@opentui/core": "0.8.1",
     "@opentui/solid": "0.8.1",
+    "@playwright/test": "1.65.0",
     "@types/bun": "^1.4.4",
+    "oxfmt": "0.78.0",
+    "oxlint": "1.93.0",
     "solid-js": "^1.9.12",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",

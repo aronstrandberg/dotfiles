@@ -14,6 +14,7 @@ import type {
   ReviewThread,
 } from "./rpc.ts"
 import { visibleMarkdown } from "./shared.ts"
+import { githubCheckCounts } from "./ci.ts"
 
 export class GhError extends Error {
   constructor(
@@ -70,7 +71,7 @@ const SUMMARY_FIELDS = `
   number title url state isDraft headRefName additions deletions reviewDecision isInMergeQueue
   author { login }
   autoMergeRequest { mergeMethod }
-  commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+  commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 100) { totalCount checkRunCountsByState { state count } statusContextCountsByState { state count } } } } } }
 `
 
 interface RawSummary {
@@ -86,7 +87,7 @@ interface RawSummary {
   isInMergeQueue: boolean
   author: { login: string } | null
   autoMergeRequest: { mergeMethod: string } | null
-  commits: { nodes: { commit: { statusCheckRollup: { state: string } | null } }[] }
+  commits: { nodes: { commit: { statusCheckRollup: { state: string; contexts?: unknown } | null } }[] }
 }
 
 function rollupState(state: string | undefined | null): ChecksState {
@@ -119,6 +120,7 @@ function toSummary(ref: PrRef, raw: RawSummary): PrSummary {
     deletions: raw.deletions,
     reviewDecision: raw.reviewDecision,
     checks: rollupState(raw.commits.nodes[0]?.commit.statusCheckRollup?.state),
+    checkCounts: githubCheckCounts(raw.commits.nodes[0]?.commit.statusCheckRollup?.contexts),
     isInMergeQueue: raw.isInMergeQueue,
     autoMerge: raw.autoMergeRequest !== null,
   }
@@ -255,11 +257,7 @@ type RawContext =
 function toCheck(raw: RawContext): Check {
   if (raw.__typename === "StatusContext") {
     const state =
-      raw.state === "SUCCESS"
-        ? "success"
-        : raw.state === "FAILURE" || raw.state === "ERROR"
-          ? "failure"
-          : "pending"
+      raw.state === "SUCCESS" ? "success" : raw.state === "FAILURE" || raw.state === "ERROR" ? "failure" : "pending"
     return {
       name: raw.context,
       state,
@@ -337,25 +335,21 @@ export async function detail(ref: PrRef, options: GhOptions): Promise<PrDetail> 
     })),
     checkList: (rollup?.contexts.nodes ?? []).filter((node: any) => node?.__typename).map(toCheck),
     comments: pr.comments.nodes.map(comment),
-    reviews: pr.reviews.nodes.map(
-      (raw: any): Review => ({
-        author: author(raw.author),
-        body: visibleMarkdown(raw.body ?? ""),
-        state: raw.state,
-        submittedAt: raw.submittedAt,
-        url: raw.url,
-      }),
-    ),
-    threads: pr.reviewThreads.nodes.map(
-      (raw: any): ReviewThread => ({
-        path: raw.path,
-        line: raw.line ?? raw.originalLine ?? null,
-        isResolved: raw.isResolved,
-        isOutdated: raw.isOutdated,
-        diffHunk: raw.comments.nodes[0]?.diffHunk ?? "",
-        comments: raw.comments.nodes.map(comment),
-      }),
-    ),
+    reviews: pr.reviews.nodes.map((raw: any): Review => ({
+      author: author(raw.author),
+      body: visibleMarkdown(raw.body ?? ""),
+      state: raw.state,
+      submittedAt: raw.submittedAt,
+      url: raw.url,
+    })),
+    threads: pr.reviewThreads.nodes.map((raw: any): ReviewThread => ({
+      path: raw.path,
+      line: raw.line ?? raw.originalLine ?? null,
+      isResolved: raw.isResolved,
+      isOutdated: raw.isOutdated,
+      diffHunk: raw.comments.nodes[0]?.diffHunk ?? "",
+      comments: raw.comments.nodes.map(comment),
+    })),
     mergeMethods: methods.length > 0 ? methods : ["merge"],
     defaultMergeMethod: methods.includes(defaultMethod) ? defaultMethod : (methods[0] ?? "merge"),
     viewerPermission: repo.viewerPermission ?? null,
@@ -364,7 +358,15 @@ export async function detail(ref: PrRef, options: GhOptions): Promise<PrDetail> 
 
 async function mergeQueueEnabled(ref: PrRef, base: string, options: GhOptions) {
   const data = await graphql<{ repository: { mergeQueue: { id: string } | null } }>(
-    `query($owner: String!, $name: String!, $branch: String!) { repository(owner: $owner, name: $name) { mergeQueue(branch: $branch) { id } } }`,
+    `
+      query ($owner: String!, $name: String!, $branch: String!) {
+        repository(owner: $owner, name: $name) {
+          mergeQueue(branch: $branch) {
+            id
+          }
+        }
+      }
+    `,
     { owner: ref.owner, name: ref.repo, branch: base },
     options,
   )

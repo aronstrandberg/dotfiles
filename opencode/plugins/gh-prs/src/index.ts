@@ -4,11 +4,10 @@ import { PrCardLeases } from "./capability.ts"
 import * as GitHub from "./github.ts"
 import { addPrCardInstruction, parsePrCardPayload, resolvePrCard } from "./pr-card.ts"
 import { GhPrs, type PrAction, type PrRef } from "./rpc.ts"
-import { findPrUrls, prKey } from "./shared.ts"
 import { GitHubLoadPool, RepositoryCache, SummaryCache } from "./summary-cache.ts"
+import { createTracker } from "./tracker.ts"
+import { trackerTools } from "./tracker-tools.ts"
 
-/** Most mentioned PRs listed per session, newest mention first. */
-const MAX_PRS = 40
 const SUMMARY_TTL = 30_000
 const SUMMARY_CAPACITY = 100
 const SUMMARY_CONCURRENCY = 4
@@ -40,6 +39,16 @@ export default Plugin.define({
       load: (directory, signal) => GitHub.repository(directory, { gh, signal }),
     })
     const leases = new PrCardLeases({ ttl: CARD_LEASE_TTL, now: Date.now })
+    const tracker = createTracker(ctx.storage, Date.now)
+
+    await ctx.tool.transform((editor) => {
+      editor.namespace({
+        name: "ghprs",
+        description:
+          "Track PRs created for this session and report work status, blockers, and actions needed from the user.",
+      })
+      for (const tool of Object.values(trackerTools(tracker))) editor.add(tool)
+    })
 
     const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
     // RPC output must be plain JSON: drop undefined fields.
@@ -78,26 +87,13 @@ export default Plugin.define({
 
     await ctx.rpc.register(GhPrs, {
       mentioned: async (input, call) => {
-        const { sessionID, directory, fresh } = input as { sessionID: string; directory?: string; fresh?: boolean }
-        const messages = await ctx.session.context({ sessionID })
-        // Newest message first, so the most recently discussed PRs lead the list.
-        const seen = new Map<string, PrRef>()
-        for (const entry of [...messages].reverse()) {
-          for (const ref of findPrUrls(JSON.stringify(entry))) {
-            const key = prKey(ref)
-            if (!seen.has(key)) seen.set(key, { owner: ref.owner, repo: ref.repo, number: ref.number })
-          }
-          if (seen.size >= MAX_PRS) break
-        }
-        const branch = directory ? await GitHub.branchPr(directory, { gh, signal: call.signal }) : undefined
-        const refs = [...(branch ? [branch] : []), ...seen.values()].filter(
-          (ref, index, all) => all.findIndex((other) => prKey(other) === prKey(ref)) === index,
-        )
+        const { sessionID, fresh } = input as { sessionID: string; fresh?: boolean }
+        const tracked = await tracker.list(sessionID)
         try {
-          const prs = await cache.getMany(refs, fresh === true, call.signal)
-          return json({ prs: prs.map((pr) => (branch && prKey(pr) === prKey(branch) ? { ...pr, branch: true } : pr)) })
+          const prs = await cache.getMany(tracked, fresh === true, call.signal)
+          return json({ prs, tracked })
         } catch (error) {
-          return { prs: [], error: message(error) }
+          return { prs: [], tracked, error: message(error) }
         }
       },
       detail: async (input, call) => {

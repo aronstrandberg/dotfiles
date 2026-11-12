@@ -17,6 +17,7 @@ import {
 import { mergeChoices, type MergeChoice } from "../merge.ts"
 import { errorText, type App, type Page } from "./state.ts"
 import { prSections } from "./sections.ts"
+import { PrTable } from "./pr-table.tsx"
 
 const POLL_MS = 30_000
 
@@ -31,7 +32,10 @@ function StateLabel(props: { app: App; pr: Pick<PrSummary, "state" | "isDraft" |
   const ui = props.app.ctx.ui
   return (
     <span class="ghp-state" data-state={stateLabel(props.pr)}>
-      <ui.Icon name={props.pr.state === "MERGED" ? "check" : props.pr.state === "CLOSED" ? "circle-x" : "branch"} size="small" />
+      <ui.Icon
+        name={props.pr.state === "MERGED" ? "check" : props.pr.state === "CLOSED" ? "circle-x" : "branch"}
+        size="small"
+      />
       {stateLabel(props.pr)}
     </span>
   )
@@ -70,7 +74,16 @@ export function ListView(props: { app: App; session: MountedSession }) {
   const ui = props.app.ctx.ui
   const mentions = () => props.app.mentions(props.session)
   const panel = usePanel()
-  createEffect(on(() => props.session.key, () => void props.app.load(props.session)))
+  createEffect(
+    on(
+      () => props.session.key,
+      () => void props.app.load(props.session),
+    ),
+  )
+  const timer = setInterval(() => {
+    if (panel.visible() && !mentions()?.loading) void props.app.load(props.session)
+  }, POLL_MS)
+  onCleanup(() => clearInterval(timer))
 
   return (
     <div class="ghp" data-placement={panel.placement()}>
@@ -78,7 +91,7 @@ export function ListView(props: { app: App; session: MountedSession }) {
         <div class="ghp-grow">
           <div style={{ "font-weight": 600 }}>Pull requests</div>
           <div class="ghp-muted" style={{ "font-size": "12px" }}>
-            Linked in this session, plus the current branch's PR
+            Registered by this session · CI from GitHub · work status reported by agents
           </div>
         </div>
         <ui.Tooltip value="Refresh">
@@ -94,42 +107,26 @@ export function ListView(props: { app: App; session: MountedSession }) {
       <Show when={mentions()?.error}>{(error) => <div class="ghp-error">{error()}</div>}</Show>
       <div class="ghp-scroll">
         <Show
-          when={(mentions()?.prs.length ?? 0) > 0}
+          when={(mentions()?.tracked.length ?? 0) > 0}
           fallback={
             <div class="ghp-empty">
               <Show when={mentions()?.loading} fallback={<ui.Icon name="github" size="large" />}>
                 <ui.Loader size="large" />
               </Show>
               <Show when={!mentions()?.loading}>
-                <div>No pull requests yet. Links to github.com/…/pull/N in this session show up here.</div>
+                <div>
+                  No registered pull requests. Ask the agent to register a PR it created or one you want it to take
+                  over.
+                </div>
               </Show>
             </div>
           }
         >
-          <For each={mentions()?.prs}>
-            {(pr) => (
-              <div class="ghp-item" onClick={() => props.app.openPr(props.session, pr)}>
-                <span class="ghp-dot" data-checks={pr.checks} aria-hidden="true" />
-                <span class="ghp-sr-only">Checks {checkStateLabel(pr.checks)}</span>
-                <div class="ghp-item-title ghp-ellipsis">{pr.title}</div>
-                <StateLabel app={props.app} pr={pr} />
-                <div class="ghp-item-meta">
-                  <span class="ghp-mono">
-                    {pr.repo}#{pr.number}
-                  </span>
-                  <Show when={pr.branch}>
-                    <span class="ghp-chip">this branch</span>
-                  </Show>
-                  <span>{pr.author}</span>
-                  <Diffstat additions={pr.additions} deletions={pr.deletions} />
-                  <Show when={reviewLabel(pr.reviewDecision)}>{(label) => <span>{label()}</span>}</Show>
-                  <Show when={pr.autoMerge}>
-                    <span class="ghp-chip">auto-merge</span>
-                  </Show>
-                </div>
-              </div>
-            )}
-          </For>
+          <PrTable
+            tracked={mentions()?.tracked ?? []}
+            prs={mentions()?.prs ?? []}
+            onOpen={(ref, page) => props.app.openPr(props.session, ref, page)}
+          />
         </Show>
       </div>
     </div>
@@ -148,7 +145,13 @@ export function PrView(props: { app: App; session: MountedSession; screen: Sessi
   const client = () => props.app.client(props.session)
 
   const [page, setPage] = createSignal<Page>(props.app.requestedPage(props.target)?.page ?? "overview")
-  createEffect(on(() => props.app.requestedPage(props.target), (request) => request && setPage(request.page), { defer: true }))
+  createEffect(
+    on(
+      () => props.app.requestedPage(props.target),
+      (request) => request && setPage(request.page),
+      { defer: true },
+    ),
+  )
 
   const [version, setVersion] = createSignal(0)
   const detail = createLatest(
@@ -191,7 +194,12 @@ export function PrView(props: { app: App; session: MountedSession; screen: Sessi
       return true
     } catch (error) {
       toast.dismiss()
-      ctx.toast.show({ variant: "error", title: "GitHub refused the request", description: errorText(error), duration: 10_000 })
+      ctx.toast.show({
+        variant: "error",
+        title: "GitHub refused the request",
+        description: errorText(error),
+        duration: 10_000,
+      })
       return false
     } finally {
       setBusy(false)
@@ -204,7 +212,17 @@ export function PrView(props: { app: App; session: MountedSession; screen: Sessi
         <Match when={pr()}>
           {(value) => (
             <>
-              <Header app={props.app} session={props.session} pr={value()} busy={busy()} loading={detail.loading} onRefresh={refresh} perform={perform} page={page()} setPage={setPage} />
+              <Header
+                app={props.app}
+                session={props.session}
+                pr={value()}
+                busy={busy()}
+                loading={detail.loading}
+                onRefresh={refresh}
+                perform={perform}
+                page={page()}
+                setPage={setPage}
+              />
               <Show when={detail.error}>{<div class="ghp-error">Refresh failed: {errorText(detail.error)}</div>}</Show>
               <Switch>
                 <Match when={page() === "overview"}>
@@ -214,10 +232,24 @@ export function PrView(props: { app: App; session: MountedSession; screen: Sessi
                   <Checks app={props.app} session={props.session} screen={props.screen} pr={value()} />
                 </Match>
                 <Match when={page() === "comments"}>
-                  <Comments app={props.app} session={props.session} screen={props.screen} pr={value()} busy={busy()} perform={perform} />
+                  <Comments
+                    app={props.app}
+                    session={props.session}
+                    screen={props.screen}
+                    pr={value()}
+                    busy={busy()}
+                    perform={perform}
+                  />
                 </Match>
                 <Match when={page() === "files"}>
-                  <Files app={props.app} session={props.session} pr={value()} files={files.latest} loading={files.loading} error={files.error} />
+                  <Files
+                    app={props.app}
+                    session={props.session}
+                    pr={value()}
+                    files={files.latest}
+                    loading={files.loading}
+                    error={files.error}
+                  />
                 </Match>
               </Switch>
             </>
@@ -272,12 +304,20 @@ function Header(props: {
   }
 
   async function approve() {
-    const ok = await ctx.dialogs.confirm({ title: `Approve #${props.pr.number}?`, description: props.pr.title, confirm: "Approve" })
+    const ok = await ctx.dialogs.confirm({
+      title: `Approve #${props.pr.number}?`,
+      description: props.pr.title,
+      confirm: "Approve",
+    })
     if (ok) await props.perform({ type: "approve" }, "Approving…")
   }
 
   async function requestChanges() {
-    const body = await ctx.dialogs.prompt({ title: `Request changes on #${props.pr.number}`, placeholder: "What needs to change?", submit: "Request changes" })
+    const body = await ctx.dialogs.prompt({
+      title: `Request changes on #${props.pr.number}`,
+      placeholder: "What needs to change?",
+      submit: "Request changes",
+    })
     if (body) await props.perform({ type: "request-changes", body }, "Requesting changes…")
   }
 
@@ -285,7 +325,11 @@ function Header(props: {
     choices().menu.map((entry): UiMenuEntry => {
       if (entry === "separator") return { type: "separator" }
       if ("group" in entry)
-        return { type: "group", label: entry.group, items: entry.items.map((item) => ({ label: item.label, icon: item.icon, onSelect: () => void choose(item) })) }
+        return {
+          type: "group",
+          label: entry.group,
+          items: entry.items.map((item) => ({ label: item.label, icon: item.icon, onSelect: () => void choose(item) })),
+        }
       return { label: entry.label, icon: entry.icon, onSelect: () => void choose(entry) }
     })
 
@@ -293,7 +337,8 @@ function Header(props: {
     const pr = props.pr
     if (pr.state === "MERGED") return "ghp-tone-success"
     if (pr.mergeable === "CONFLICTING" || pr.mergeStateStatus === "DIRTY") return "ghp-tone-failure"
-    if (["CLEAN", "HAS_HOOKS"].includes(pr.mergeStateStatus) || pr.isInMergeQueue || pr.autoMerge) return "ghp-tone-success"
+    if (["CLEAN", "HAS_HOOKS"].includes(pr.mergeStateStatus) || pr.isInMergeQueue || pr.autoMerge)
+      return "ghp-tone-success"
     return "ghp-tone-pending"
   }
 
@@ -318,28 +363,63 @@ function Header(props: {
         <span class="ghp-hide-narrow">· {relativeTime(props.pr.updatedAt)}</span>
       </div>
       <div class={`ghp-merge-status ${mergeTone()}`}>
-        <ui.Icon name={mergeTone() === "ghp-tone-failure" ? "circle-x" : mergeTone() === "ghp-tone-success" ? "circle-check" : "circle-exclamation"} size="small" />
+        <ui.Icon
+          name={
+            mergeTone() === "ghp-tone-failure"
+              ? "circle-x"
+              : mergeTone() === "ghp-tone-success"
+                ? "circle-check"
+                : "circle-exclamation"
+          }
+          size="small"
+        />
         <span>{mergeStatusText(props.pr)}</span>
       </div>
       <div class="ghp-actions">
         <Show when={choices().primary}>
           {(primary) => (
-            <ui.Button variant="contrast" size="small" icon={primary().icon} busy={props.busy} onClick={() => void choose(primary())}>
+            <ui.Button
+              variant="contrast"
+              size="small"
+              icon={primary().icon}
+              busy={props.busy}
+              onClick={() => void choose(primary())}
+            >
               {primary().label}
             </ui.Button>
           )}
         </Show>
         <Show when={choices().menu.length > 1}>
-          <ui.Menu label="More merge options" icon="chevron-down" trigger="icon" placement="bottom-start" disabled={props.busy} items={menuEntries()} />
+          <ui.Menu
+            label="More merge options"
+            icon="chevron-down"
+            trigger="icon"
+            placement="bottom-start"
+            disabled={props.busy}
+            items={menuEntries()}
+          />
         </Show>
         <Show when={props.pr.state === "OPEN"}>
-          <ui.Button size="small" variant="neutral" icon="check-small" disabled={props.busy} onClick={() => void approve()}>
+          <ui.Button
+            size="small"
+            variant="neutral"
+            icon="check-small"
+            disabled={props.busy}
+            onClick={() => void approve()}
+          >
             Approve
           </ui.Button>
         </Show>
         <span class="ghp-spacer" />
         <ui.Tooltip value="Refresh">
-          <ui.IconButton icon="refresh" label="Refresh" size="small" variant="ghost" busy={props.loading} onClick={props.onRefresh} />
+          <ui.IconButton
+            icon="refresh"
+            label="Refresh"
+            size="small"
+            variant="ghost"
+            busy={props.loading}
+            onClick={props.onRefresh}
+          />
         </ui.Tooltip>
         <ui.Menu
           label="More"
@@ -347,12 +427,21 @@ function Header(props: {
           trigger="icon"
           placement="bottom-end"
           items={[
-            { label: "Open on GitHub", icon: "square-arrow-top-right", onSelect: () => openUrl(props.app, props.session, props.pr.url) },
+            {
+              label: "Open on GitHub",
+              icon: "square-arrow-top-right",
+              onSelect: () => openUrl(props.app, props.session, props.pr.url),
+            },
             { label: "Open in system browser", icon: "globe", onSelect: () => ctx.system.openExternal(props.pr.url) },
             { label: "Copy link", icon: "link", onSelect: () => void ctx.system.copy(props.pr.url) },
             { label: "Copy branch name", icon: "branch", onSelect: () => void ctx.system.copy(props.pr.headRefName) },
             { type: "separator" },
-            { label: "Request changes…", icon: "comment", disabled: props.pr.state !== "OPEN", onSelect: () => void requestChanges() },
+            {
+              label: "Request changes…",
+              icon: "comment",
+              disabled: props.pr.state !== "OPEN",
+              onSelect: () => void requestChanges(),
+            },
             {
               label: "Mention in prompt",
               icon: "prompt",
@@ -377,7 +466,9 @@ function Header(props: {
             >
               {section.label}{" "}
               <Show when={section.detail}>
-                <span class="ghp-section-count" data-tone={section.tone}>{section.detail}</span>
+                <span class="ghp-section-count" data-tone={section.tone}>
+                  {section.detail}
+                </span>
               </Show>
             </button>
           )}
@@ -410,7 +501,16 @@ function Overview(props: { app: App; pr: PrDetail }) {
                   <ui.Tooltip value={status}>
                     <span class="ghp-chip">
                       <span class="ghp-review-state" data-state={state} aria-hidden="true">
-                        <ui.Icon name={state === "APPROVED" ? "check-small" : state === "CHANGES_REQUESTED" ? "circle-x" : "status-active"} size="small" />
+                        <ui.Icon
+                          name={
+                            state === "APPROVED"
+                              ? "check-small"
+                              : state === "CHANGES_REQUESTED"
+                                ? "circle-x"
+                                : "status-active"
+                          }
+                          size="small"
+                        />
                       </span>
                       {name}
                       <span class="ghp-sr-only">, {status}</span>
@@ -424,13 +524,7 @@ function Overview(props: { app: App; pr: PrDetail }) {
         <Show when={props.pr.labels.length > 0}>
           <dt>Labels</dt>
           <dd>
-            <For each={props.pr.labels}>
-              {(label) => (
-                <span class="ghp-chip">
-                  {label.name}
-                </span>
-              )}
-            </For>
+            <For each={props.pr.labels}>{(label) => <span class="ghp-chip">{label.name}</span>}</For>
           </dd>
         </Show>
         <dt>Changes</dt>
@@ -461,14 +555,25 @@ function Overview(props: { app: App; pr: PrDetail }) {
 function Checks(props: { app: App; session: MountedSession; screen: SessionScreen; pr: PrDetail }) {
   const ctx = props.app.ctx
   const ui = ctx.ui
-  const counts = createMemo(() => checkCounts(props.pr.checkList))
+  const counts = createMemo(() => props.pr.checkCounts ?? { ...checkCounts(props.pr.checkList), unknown: 0 })
+  const total = createMemo(() => Object.values(counts()).reduce((sum, count) => sum + count, 0))
   const groups = createMemo(() => {
     const sorted = sortChecks(props.pr.checkList)
     return [
       { id: "failure", title: "Failing", items: sorted.filter((check) => check.state === "failure"), open: true },
       { id: "pending", title: "In progress", items: sorted.filter((check) => check.state === "pending"), open: true },
-      { id: "success", title: "Passed", items: sorted.filter((check) => check.state === "success"), open: counts().failure === 0 },
-      { id: "skipped", title: "Skipped or neutral", items: sorted.filter((check) => check.state === "skipped" || check.state === "neutral"), open: false },
+      {
+        id: "success",
+        title: "Passed",
+        items: sorted.filter((check) => check.state === "success"),
+        open: counts().failure === 0,
+      },
+      {
+        id: "skipped",
+        title: "Skipped or neutral",
+        items: sorted.filter((check) => check.state === "skipped" || check.state === "neutral"),
+        open: false,
+      },
     ].filter((group) => group.items.length > 0)
   })
   const [toggled, setToggled] = createSignal<Record<string, boolean>>({})
@@ -479,7 +584,7 @@ function Checks(props: { app: App; session: MountedSession; screen: SessionScree
     const composer = ctx.screen.current()?.composer
     if (!composer) return
     composer.insert(
-      `CI is failing on ${props.pr.url} (${failing.map((check) => check.name).join(", ")}). Investigate the failing checks and fix them.`,
+      `CI is failing on ${props.pr.url}${failing.length ? ` (${failing.map((check) => check.name).join(", ")})` : ""}. Investigate the failing checks and fix them.`,
     )
     composer.focus()
   }
@@ -517,11 +622,26 @@ function Checks(props: { app: App; session: MountedSession; screen: SessionScree
           </ui.Button>
         </Show>
         <ui.Tooltip value="Checks on GitHub">
-          <ui.IconButton icon="square-arrow-top-right" label="Checks on GitHub" size="small" variant="ghost" onClick={() => openUrl(props.app, props.session, `${prUrl(props.pr)}/checks`)} />
+          <ui.IconButton
+            icon="square-arrow-top-right"
+            label="Checks on GitHub"
+            size="small"
+            variant="ghost"
+            onClick={() => openUrl(props.app, props.session, `${prUrl(props.pr)}/checks`)}
+          />
         </ui.Tooltip>
       </div>
       <div class="ghp-scroll">
-        <Show when={props.pr.checkList.length > 0} fallback={<div class="ghp-empty">No checks reported for {props.pr.headRefOid.slice(0, 7)}.</div>}>
+        <Show when={total() > props.pr.checkList.length}>
+          <div class="ghp-note">
+            Showing {props.pr.checkList.length} of {total()} checks. Counts include all checks; open GitHub to see the
+            remaining details.
+          </div>
+        </Show>
+        <Show
+          when={props.pr.checkList.length > 0}
+          fallback={<div class="ghp-empty">No checks reported for {props.pr.headRefOid.slice(0, 7)}.</div>}
+        >
           <For each={groups()}>
             {(group) => {
               const controls = `ghp-checks-${props.pr.owner}-${props.pr.repo}-${props.pr.number}-${group.id}`
@@ -544,12 +664,17 @@ function Checks(props: { app: App; session: MountedSession; screen: SessionScree
                       <For each={group.items}>
                         {(check) => (
                           <div class="ghp-check">
-                            <span class={`ghp-tone-${check.state}`} style={{ display: "inline-flex" }} aria-hidden="true">
+                            <span
+                              class={`ghp-tone-${check.state}`}
+                              style={{ display: "inline-flex" }}
+                              aria-hidden="true"
+                            >
                               <ui.Icon name={checkIcon(check.state)} size="small" />
                             </span>
                             <div class="ghp-check-name">
                               <span class="ghp-ellipsis">
-                                {check.name}<span class="ghp-sr-only">, {checkStateLabel(check.state)}</span>
+                                {check.name}
+                                <span class="ghp-sr-only">, {checkStateLabel(check.state)}</span>
                               </span>
                               <small class="ghp-ellipsis">
                                 {[check.workflow, check.description, duration(check)].filter(Boolean).join(" · ")}
@@ -558,13 +683,25 @@ function Checks(props: { app: App; session: MountedSession; screen: SessionScree
                             <div class="ghp-check-actions">
                               <Show when={check.state === "failure" || check.state === "pending"}>
                                 <ui.Tooltip value="Add to prompt">
-                                  <ui.IconButton icon="prompt" label="Add to prompt" size="small" variant="ghost" onClick={() => attachCheck(check)} />
+                                  <ui.IconButton
+                                    icon="prompt"
+                                    label="Add to prompt"
+                                    size="small"
+                                    variant="ghost"
+                                    onClick={() => attachCheck(check)}
+                                  />
                                 </ui.Tooltip>
                               </Show>
                               <Show when={check.url}>
                                 {(url) => (
                                   <ui.Tooltip value="Open details">
-                                    <ui.IconButton icon="square-arrow-top-right" label="Open details" size="small" variant="ghost" onClick={() => openUrl(props.app, props.session, url())} />
+                                    <ui.IconButton
+                                      icon="square-arrow-top-right"
+                                      label="Open details"
+                                      size="small"
+                                      variant="ghost"
+                                      onClick={() => openUrl(props.app, props.session, url())}
+                                    />
                                   </ui.Tooltip>
                                 )}
                               </Show>
@@ -616,7 +753,12 @@ function Comments(props: {
     ]
     return list
       .filter((entry) => {
-        const author = entry.kind === "comment" ? entry.comment.author : entry.kind === "review" ? entry.review.author : entry.thread.comments[0]!.author
+        const author =
+          entry.kind === "comment"
+            ? entry.comment.author
+            : entry.kind === "review"
+              ? entry.review.author
+              : entry.thread.comments[0]!.author
         return showBots || !author.bot
       })
       .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
@@ -627,7 +769,12 @@ function Comments(props: {
     const composer = ctx.screen.current()?.composer
     if (!composer?.quotable()) return
     const commentID = crypto.randomUUID()
-    composer.attach({ type: "quote", commentID, text, source: { label: `#${props.pr.number}`, icon: "github", subject } })
+    composer.attach({
+      type: "quote",
+      commentID,
+      text,
+      source: { label: `#${props.pr.number}`, icon: "github", subject },
+    })
     composer.focus(commentID)
   }
 
@@ -651,9 +798,18 @@ function Comments(props: {
           trigger="icon"
           placement="bottom-end"
           items={[
-            { label: "Quote in prompt", icon: "outline-quote", onSelect: () => quote(p.comment.body, `a comment by ${p.comment.author.login} ${p.where} on ${props.pr.url}`) },
+            {
+              label: "Quote in prompt",
+              icon: "outline-quote",
+              onSelect: () =>
+                quote(p.comment.body, `a comment by ${p.comment.author.login} ${p.where} on ${props.pr.url}`),
+            },
             { label: "Copy link", icon: "link", onSelect: () => void ctx.system.copy(p.comment.url) },
-            { label: "Open on GitHub", icon: "square-arrow-top-right", onSelect: () => openUrl(props.app, props.session, p.comment.url) },
+            {
+              label: "Open on GitHub",
+              icon: "square-arrow-top-right",
+              onSelect: () => openUrl(props.app, props.session, p.comment.url),
+            },
           ]}
         />
       </div>
@@ -669,8 +825,16 @@ function Comments(props: {
         <span class="ghp-grow ghp-muted" style={{ "font-size": "12px" }}>
           {entries().length} items · {unresolved()} unresolved threads
         </span>
-        <ui.Switch label="Bots" checked={prefs.value.showBots} onChange={(value) => prefs.update((draft) => void (draft.showBots = value))} />
-        <ui.Switch label="Resolved" checked={prefs.value.showResolved} onChange={(value) => prefs.update((draft) => void (draft.showResolved = value))} />
+        <ui.Switch
+          label="Bots"
+          checked={prefs.value.showBots}
+          onChange={(value) => prefs.update((draft) => void (draft.showBots = value))}
+        />
+        <ui.Switch
+          label="Resolved"
+          checked={prefs.value.showResolved}
+          onChange={(value) => prefs.update((draft) => void (draft.showResolved = value))}
+        />
       </div>
       <div class="ghp-scroll">
         <Show when={entries().length > 0} fallback={<div class="ghp-empty">No conversation yet.</div>}>
@@ -687,7 +851,11 @@ function Comments(props: {
                         <div class="ghp-entry-head">
                           <b>{review().author.login}</b>
                           <span class="ghp-review-state" data-state={review().state}>
-                            {review().state === "APPROVED" ? "approved" : review().state === "CHANGES_REQUESTED" ? "requested changes" : "reviewed"}
+                            {review().state === "APPROVED"
+                              ? "approved"
+                              : review().state === "CHANGES_REQUESTED"
+                                ? "requested changes"
+                                : "reviewed"}
                           </span>
                           <span class="ghp-muted">{relativeTime(review().submittedAt)}</span>
                         </div>
@@ -704,7 +872,11 @@ function Comments(props: {
                       const open = () => expanded()[index()] ?? (!thread().isResolved || prefs.value.showResolved)
                       return (
                         <div class="ghp-thread">
-                          <div class="ghp-thread-head" style={{ cursor: "pointer" }} onClick={() => setExpanded({ ...expanded(), [index()]: !open() })}>
+                          <div
+                            class="ghp-thread-head"
+                            style={{ cursor: "pointer" }}
+                            onClick={() => setExpanded({ ...expanded(), [index()]: !open() })}
+                          >
                             <span class="ghp-chevron" data-open={open() ? "" : undefined}>
                               <ui.Icon name="chevron-right" size="small" />
                             </span>
@@ -729,7 +901,10 @@ function Comments(props: {
                             <For each={thread().comments}>
                               {(comment) => (
                                 <div class="ghp-thread-comment">
-                                  <CommentBody comment={comment} where={`on ${thread().path}${thread().line ? `:${thread().line}` : ""}`} />
+                                  <CommentBody
+                                    comment={comment}
+                                    where={`on ${thread().path}${thread().line ? `:${thread().line}` : ""}`}
+                                  />
                                 </div>
                               )}
                             </For>
@@ -758,7 +933,14 @@ function Comments(props: {
             }}
           />
           <div class="ghp-row" style={{ "justify-content": "flex-end" }}>
-            <ui.Button size="small" variant="contrast" icon="comment" busy={props.busy} disabled={!draft().trim()} onClick={() => void submit()}>
+            <ui.Button
+              size="small"
+              variant="contrast"
+              icon="comment"
+              busy={props.busy}
+              disabled={!draft().trim()}
+              onClick={() => void submit()}
+            >
               Comment
             </ui.Button>
           </div>
@@ -776,7 +958,14 @@ function lastLines(text: string, count: number) {
 const AUTO_EXPAND_FILES = 12
 const AUTO_EXPAND_LINES = 400
 
-function Files(props: { app: App; session: MountedSession; pr: PrDetail; files?: { files: PrFile[]; truncated: boolean }; loading: boolean; error: unknown }) {
+function Files(props: {
+  app: App
+  session: MountedSession
+  pr: PrDetail
+  files?: { files: PrFile[]; truncated: boolean }
+  loading: boolean
+  error: unknown
+}) {
   const ctx = props.app.ctx
   const ui = ctx.ui
   const [filter, setFilter] = createSignal("")
@@ -794,23 +983,45 @@ function Files(props: { app: App; session: MountedSession; pr: PrDetail; files?:
   const openLocal = async (file: PrFile) => {
     const link = { href: file.filename, session: props.session, exact: true }
     if (await ctx.links.exists(link)) ctx.links.open(link)
-    else ctx.toast.show({ title: "Not in this workspace", description: `${file.filename} does not exist in ${props.session.directory}` })
+    else
+      ctx.toast.show({
+        title: "Not in this workspace",
+        description: `${file.filename} does not exist in ${props.session.directory}`,
+      })
   }
 
   return (
     <>
       <div class="ghp-toolbar">
         <div class="ghp-grow">
-          <ui.TextInput label="Filter files" placeholder="Filter files" type="search" value={filter()} onInput={setFilter} />
+          <ui.TextInput
+            label="Filter files"
+            placeholder="Filter files"
+            type="search"
+            value={filter()}
+            onInput={setFilter}
+          />
         </div>
         <ui.Tooltip value="Expand all">
           <ui.IconButton icon="expand" label="Expand all" size="small" variant="ghost" onClick={() => setAll(true)} />
         </ui.Tooltip>
         <ui.Tooltip value="Collapse all">
-          <ui.IconButton icon="collapse" label="Collapse all" size="small" variant="ghost" onClick={() => setAll(false)} />
+          <ui.IconButton
+            icon="collapse"
+            label="Collapse all"
+            size="small"
+            variant="ghost"
+            onClick={() => setAll(false)}
+          />
         </ui.Tooltip>
         <ui.Tooltip value="Files on GitHub">
-          <ui.IconButton icon="square-arrow-top-right" label="Files on GitHub" size="small" variant="ghost" onClick={() => openUrl(props.app, props.session, `${prUrl(props.pr)}/files`)} />
+          <ui.IconButton
+            icon="square-arrow-top-right"
+            label="Files on GitHub"
+            size="small"
+            variant="ghost"
+            onClick={() => openUrl(props.app, props.session, `${prUrl(props.pr)}/files`)}
+          />
         </ui.Tooltip>
       </div>
       <div class="ghp-scroll">
@@ -827,22 +1038,50 @@ function Files(props: { app: App; session: MountedSession; pr: PrDetail; files?:
                       <ui.Icon name="chevron-right" size="small" />
                     </span>
                     <span class="ghp-file-status" data-status={file.status} title={file.status}>
-                      {file.status === "added" ? "A" : file.status === "removed" ? "D" : file.status === "renamed" ? "R" : "M"}
+                      {file.status === "added"
+                        ? "A"
+                        : file.status === "removed"
+                          ? "D"
+                          : file.status === "renamed"
+                            ? "R"
+                            : "M"}
                     </span>
-                    <span class="ghp-mono ghp-ellipsis ghp-grow ghp-file-path" title={file.previousFilename ? `${file.previousFilename} → ${file.filename}` : file.filename}>
+                    <span
+                      class="ghp-mono ghp-ellipsis ghp-grow ghp-file-path"
+                      title={file.previousFilename ? `${file.previousFilename} → ${file.filename}` : file.filename}
+                    >
                       {file.filename}
                     </span>
                     <Diffstat additions={file.additions} deletions={file.deletions} />
                     <span onClick={(event) => event.stopPropagation()}>
                       <ui.Tooltip value="Open in workspace">
-                        <ui.IconButton icon="open-file" label="Open in workspace" size="small" variant="ghost" onClick={() => void openLocal(file)} />
+                        <ui.IconButton
+                          icon="open-file"
+                          label="Open in workspace"
+                          size="small"
+                          variant="ghost"
+                          onClick={() => void openLocal(file)}
+                        />
                       </ui.Tooltip>
                     </span>
                   </div>
                   <Show when={isOpen(file)}>
                     <div class="ghp-file-body">
-                      <Show when={file.patch} fallback={<div class="ghp-note">{file.status === "removed" ? "File deleted." : "No textual diff (binary or too large)."}</div>}>
-                        {(patch) => <ui.Code content={patch()} language="diff" class={languageOf(file.filename) ? `language-${languageOf(file.filename)}` : undefined} />}
+                      <Show
+                        when={file.patch}
+                        fallback={
+                          <div class="ghp-note">
+                            {file.status === "removed" ? "File deleted." : "No textual diff (binary or too large)."}
+                          </div>
+                        }
+                      >
+                        {(patch) => (
+                          <ui.Code
+                            content={patch()}
+                            language="diff"
+                            class={languageOf(file.filename) ? `language-${languageOf(file.filename)}` : undefined}
+                          />
+                        )}
                       </Show>
                     </div>
                   </Show>

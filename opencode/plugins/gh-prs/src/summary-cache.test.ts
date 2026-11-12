@@ -163,7 +163,10 @@ test("loads multiple cache misses as one batch and preserves reference order", a
       return [...refs].reverse().map((item) => ({ ...summary, ...item }))
     },
   })
-  const refs = [{ ...ref, number: 1 }, { ...ref, number: 2 }]
+  const refs = [
+    { ...ref, number: 1 },
+    { ...ref, number: 2 },
+  ]
 
   const loaded = await cache.getMany(refs, false, new AbortController().signal)
 

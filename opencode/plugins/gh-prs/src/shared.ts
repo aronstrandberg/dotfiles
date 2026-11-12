@@ -86,8 +86,11 @@ export function mergeStatusText(pr: PrDetail) {
   if (pr.state === "MERGED") return `Merged ${relativeTime(pr.mergedAt)}`
   if (pr.state === "CLOSED") return "Closed without merging"
   if (pr.isInMergeQueue)
-    return pr.mergeQueuePosition === null ? "In the merge queue" : `In the merge queue, position ${pr.mergeQueuePosition + 1}`
-  if (pr.autoMerge) return `Auto-merge (${(pr.autoMergeMethod ?? "").toLowerCase()}) is on: merges when requirements pass`
+    return pr.mergeQueuePosition === null
+      ? "In the merge queue"
+      : `In the merge queue, position ${pr.mergeQueuePosition + 1}`
+  if (pr.autoMerge)
+    return `Auto-merge (${(pr.autoMergeMethod ?? "").toLowerCase()}) is on: merges when requirements pass`
   if (pr.mergeable === "CONFLICTING") return "Has conflicts with the base branch"
   switch (pr.mergeStateStatus) {
     case "CLEAN":

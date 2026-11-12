@@ -3,6 +3,7 @@ import type { MountedSession, Plugin, SessionRef } from "@opencode/plugin/gui"
 import { api, type ChecksState, type PrRef, type PrSummary } from "../rpc.ts"
 import { prKey } from "../shared.ts"
 import type { definition } from "./definition.ts"
+import type { TrackedPr } from "../work-status.ts"
 
 export type Ctx = Parameters<Plugin.Setup<typeof definition>>[0]
 export type Page = "overview" | "checks" | "comments" | "files"
@@ -29,6 +30,7 @@ export function errorText(error: unknown): string {
 
 interface Mentions {
   readonly prs: PrSummary[]
+  readonly tracked: TrackedPr[]
   readonly error?: string
   readonly loading: boolean
 }
@@ -45,13 +47,24 @@ export function createApp(ctx: Ctx) {
   function load(session: MountedSession, fresh = false) {
     const running = inflight.get(session.key)
     if (running && !fresh) return running
-    setMentions(session.key, (previous) => ({ prs: previous?.prs ?? [], error: previous?.error, loading: true }))
+    setMentions(session.key, (previous) => ({
+      prs: previous?.prs ?? [],
+      tracked: previous?.tracked ?? [],
+      error: previous?.error,
+      loading: true,
+    }))
     const task = client(session)
       .mentioned({ sessionID: session.id, directory: session.directory, fresh })
       .then(
-        (result) => setMentions(session.key, { prs: result.prs, error: result.error, loading: false }),
+        (result) =>
+          setMentions(session.key, { prs: result.prs, tracked: result.tracked, error: result.error, loading: false }),
         (error) =>
-          setMentions(session.key, (previous) => ({ prs: previous?.prs ?? [], error: errorText(error), loading: false })),
+          setMentions(session.key, (previous) => ({
+            prs: previous?.prs ?? [],
+            tracked: previous?.tracked ?? [],
+            error: errorText(error),
+            loading: false,
+          })),
       )
       .finally(() => inflight.delete(session.key))
     inflight.set(session.key, task)
