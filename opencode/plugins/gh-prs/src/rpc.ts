@@ -151,7 +151,8 @@ export interface PrDetail extends PrSummary {
   readonly mergedAt: string | null
   readonly mergeable: "MERGEABLE" | "CONFLICTING" | "UNKNOWN"
   readonly mergeStateStatus: string
-  readonly mergeQueue: boolean
+  /** Whether the base branch requires a merge queue; `null` when GitHub could not say. */
+  readonly mergeQueue: boolean | null
   readonly mergeQueuePosition: number | null
   readonly autoMergeMethod: string | null
   readonly labels: readonly { name: string; color: string }[]
@@ -164,6 +165,8 @@ export interface PrDetail extends PrSummary {
   readonly mergeMethods: readonly MergeMethod[]
   readonly defaultMergeMethod: MergeMethod
   readonly viewerPermission: string | null
+  /** The `gh` account the server acts as. */
+  readonly viewerLogin: string
 }
 
 export interface PrFile {
@@ -177,7 +180,7 @@ export interface PrFile {
 }
 
 export type PrAction =
-  | { readonly type: "merge"; readonly method?: MergeMethod; readonly auto?: boolean; readonly admin?: boolean }
+  | { readonly type: "merge"; readonly method?: MergeMethod; readonly auto?: boolean }
   | { readonly type: "disable-auto" }
   | { readonly type: "ready" }
   | { readonly type: "draft" }

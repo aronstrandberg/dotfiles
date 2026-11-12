@@ -11,34 +11,43 @@ export interface MergeChoice {
 
 export type MergeMenuEntry = MergeChoice | "separator" | { readonly group: string; readonly items: MergeChoice[] }
 
+/** Whether the viewer may approve or request changes: GitHub refuses both on a PR you authored. */
+export function canReview(pr: Pick<PrDetail, "state" | "author" | "viewerLogin">) {
+  return pr.state === "OPEN" && pr.author.toLowerCase() !== pr.viewerLogin.toLowerCase()
+}
+
 /**
  * The merge-related actions a PR offers right now: one primary action and a menu of the rest.
  *
- * Repositories with a merge queue get queue actions without a merge method, because the queue decides it.
+ * No choice bypasses branch protection or the merge queue, and the primary merge action is only ever Queue. Where the
+ * base branch has a merge queue, or GitHub could not say, Queue is a bare `gh pr merge`, which queues a PR whose checks
+ * passed and otherwise enables auto-merge into the queue. A base without a queue, such as a stacked PR's parent
+ * branch, gets no primary merge action; the menu offers merges that name the base branch.
  */
 export function mergeChoices(pr: PrDetail): { primary?: MergeChoice; menu: MergeMenuEntry[] } {
   if (pr.state !== "OPEN") return { menu: [] }
-  const ready = ["CLEAN", "UNSTABLE", "HAS_HOOKS"].includes(pr.mergeStateStatus)
-  const merge = (method: PrDetail["defaultMergeMethod"] | undefined, auto: boolean, admin = false): MergeChoice => {
-    const queued = pr.mergeQueue && !admin
-    const what = queued
-      ? auto
-        ? "Merge when ready (queue)"
-        : "Add to merge queue"
-      : method
-        ? MERGE_METHOD_LABEL[method]
-        : "Merge"
-    const label = admin ? `${what} as admin` : auto && !queued ? `Auto-merge: ${what.toLowerCase()}` : what
+  const queued = pr.mergeQueue !== false
+  const queue: MergeChoice = {
+    label: "Queue",
+    icon: "check",
+    action: { type: "merge" },
+    pending: "Adding to the merge queue…",
+    confirm: {
+      title: `Queue #${pr.number}?`,
+      confirm: "Queue",
+    },
+  }
+  const merge = (method: PrDetail["defaultMergeMethod"], auto: boolean): MergeChoice => {
+    const into = `into ${pr.baseRefName}`
+    const label = auto
+      ? `Auto-merge ${into}: ${MERGE_METHOD_LABEL[method].toLowerCase()}`
+      : `${MERGE_METHOD_LABEL[method]} ${into}`
     return {
       label,
-      icon: admin ? "warning" : "check",
-      action: { type: "merge", method: queued ? undefined : method, auto, admin },
-      pending: auto ? "Enabling auto-merge…" : queued ? "Adding to the merge queue…" : "Merging…",
-      confirm: {
-        title: `${label}: #${pr.number}?`,
-        confirm: admin ? "Bypass and merge" : auto ? "Enable" : "Merge",
-        danger: admin,
-      },
+      icon: "check",
+      action: { type: "merge", method, auto },
+      pending: auto ? "Enabling auto-merge…" : "Merging…",
+      confirm: { title: `${label}: #${pr.number}?`, confirm: auto ? "Enable" : "Merge" },
     }
   }
   const draftToggle: MergeChoice = pr.isDraft
@@ -55,21 +64,12 @@ export function mergeChoices(pr: PrDetail): { primary?: MergeChoice; menu: Merge
   if (pr.isDraft) primary = draftToggle
   else if (pr.autoMerge) primary = disableAuto
   else if (pr.isInMergeQueue) primary = undefined
-  else if (pr.mergeQueue) primary = merge(undefined, !ready)
-  else primary = merge(pr.defaultMergeMethod, !ready)
+  else if (queued) primary = queue
 
   const menu: MergeMenuEntry[] = []
-  if (!pr.isDraft && !pr.isInMergeQueue) {
-    if (pr.mergeQueue) menu.push(merge(undefined, false), merge(undefined, true))
-    else {
-      menu.push(...pr.mergeMethods.map((method) => merge(method, false)))
-      menu.push({ group: "When requirements pass", items: pr.mergeMethods.map((method) => merge(method, true)) })
-    }
-    if (pr.viewerPermission === "ADMIN")
-      menu.push({
-        group: "Bypass branch protection",
-        items: pr.mergeMethods.map((method) => merge(method, false, true)),
-      })
+  if (!pr.isDraft && !pr.isInMergeQueue && !queued) {
+    menu.push(...pr.mergeMethods.map((method) => merge(method, false)))
+    menu.push({ group: "When requirements pass", items: pr.mergeMethods.map((method) => merge(method, true)) })
   }
   menu.push("separator")
   if (pr.autoMerge) menu.push(disableAuto)

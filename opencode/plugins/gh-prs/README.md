@@ -81,9 +81,15 @@ local server and the VM to use the table with remote sessions.
     box. **Quote in prompt** quotes a comment into the composer. Bots and resolved threads can
     be hidden.
   - **Files:** a filterable diff per file. **Open in workspace** opens the file locally.
-- The header's merge button picks the right action: merge, add to the merge queue, enable
-  auto-merge while checks run, or mark ready. The menu next to it lists every method,
-  auto-merge, admin bypass (for admins), and draft toggling. Each merge asks first.
+- The header's merge button is **Queue** when the base branch has a merge queue, or when
+  GitHub can't say. It runs a bare `gh pr merge`, which queues a PR whose checks passed
+  and otherwise enables auto-merge into the queue. A base without a queue, such as a
+  stacked PR's parent branch, gets no merge button; the menu offers merges whose labels
+  name that branch. Nothing bypasses branch protection or the queue: the plugin never
+  passes `--admin`. The button is **Ready for review** on drafts and **Disable
+  auto-merge** while auto-merge is on. Each merge asks first.
+- **Approve** and **Request changes** are hidden on PRs you authored, which GitHub
+  refuses anyway.
 - On narrow screens (the web app on a phone, or any window under 768px) the panel becomes
   a **Pull requests** entry in the view menu, with larger tap targets and row actions always
   visible.
@@ -96,7 +102,7 @@ local server and the VM to use the table with remote sessions.
 - In a PR: `1`–`4` or `tab` switch between overview, checks, comments and files. `j`/`k`,
   `ctrl+d`/`ctrl+u` and `gg`/`G` scroll. On files, `n`/`p` move between files and `/` picks
   one.
-- `m` merge menu, `a` approve, `c` comment, `R` request changes, `o` open in browser,
+- `m` merge menu, `a` approve and `R` request changes (on others' PRs), `c` comment, `o` open in browser,
   `y` copy link, `r` refresh, `f` full screen.
 
 ## Install

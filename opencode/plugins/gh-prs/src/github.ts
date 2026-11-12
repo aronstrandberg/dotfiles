@@ -195,6 +195,7 @@ export async function branchPr(directory: string, options: GhOptions): Promise<P
 
 const DETAIL_QUERY = `
 query($owner: String!, $name: String!, $number: Int!) {
+  viewer { login }
   repository(owner: $owner, name: $name) {
     mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed viewerDefaultMergeMethod viewerPermission
     pullRequest(number: $number) {
@@ -297,7 +298,7 @@ function toCheck(raw: RawContext): Check {
 }
 
 export async function detail(ref: PrRef, options: GhOptions): Promise<PrDetail> {
-  const data = await graphql<{ repository: any }>(
+  const data = await graphql<{ viewer: { login: string }; repository: any }>(
     DETAIL_QUERY,
     { owner: ref.owner, name: ref.repo, number: ref.number },
     options,
@@ -319,7 +320,7 @@ export async function detail(ref: PrRef, options: GhOptions): Promise<PrDetail> 
     createdAt: raw.createdAt,
     url: raw.url,
   })
-  const queue = await mergeQueueEnabled(ref, pr.baseRefName, options).catch(() => false)
+  const queue = await mergeQueueEnabled(ref, pr.baseRefName, options).catch(() => null)
   return {
     ...summary,
     body: visibleMarkdown(pr.body ?? ""),
@@ -362,6 +363,7 @@ export async function detail(ref: PrRef, options: GhOptions): Promise<PrDetail> 
     mergeMethods: methods.length > 0 ? methods : ["merge"],
     defaultMergeMethod: methods.includes(defaultMethod) ? defaultMethod : (methods[0] ?? "merge"),
     viewerPermission: repo.viewerPermission ?? null,
+    viewerLogin: data.viewer.login,
   }
 }
 
@@ -417,7 +419,6 @@ export async function act(ref: PrRef, action: PrAction, options: GhOptions): Pro
       const args = ["pr", "merge", ...target]
       if (action.method) args.push(`--${action.method}`)
       if (action.auto) args.push("--auto")
-      if (action.admin) args.push("--admin")
       const out = await gh(args, options)
       return { message: out.trim() || (action.auto ? "Auto-merge enabled" : "Merge requested") }
     }

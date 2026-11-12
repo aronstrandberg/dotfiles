@@ -14,7 +14,7 @@ import {
   sortChecks,
   stateLabel,
 } from "../shared.ts"
-import { mergeChoices, type MergeChoice } from "../merge.ts"
+import { canReview, mergeChoices, type MergeChoice } from "../merge.ts"
 import { errorText, type App, type Page } from "./state.ts"
 import { prSections } from "./sections.ts"
 import { PrList } from "./pr-list.tsx"
@@ -444,7 +444,7 @@ function Header(props: {
             items={menuEntries()}
           />
         </Show>
-        <Show when={props.pr.state === "OPEN"}>
+        <Show when={canReview(props.pr)}>
           <ui.Button
             size="small"
             variant="neutral"
@@ -481,12 +481,9 @@ function Header(props: {
             { label: "Copy link", icon: "link", onSelect: () => void ctx.system.copy(props.pr.url) },
             { label: "Copy branch name", icon: "branch", onSelect: () => void ctx.system.copy(props.pr.headRefName) },
             { type: "separator" },
-            {
-              label: "Request changes…",
-              icon: "comment",
-              disabled: props.pr.state !== "OPEN",
-              onSelect: () => void requestChanges(),
-            },
+            ...(canReview(props.pr)
+              ? [{ label: "Request changes…", icon: "comment" as const, onSelect: () => void requestChanges() }]
+              : []),
             {
               label: "Mention in prompt",
               icon: "prompt",

@@ -3,7 +3,7 @@ import type { Context, PanelInput } from "@opencode/plugin/tui/context"
 import { MouseButton, SyntaxStyle, TextAttributes, type RGBA, type ScrollBoxRenderable } from "@opentui/core"
 import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, Show, Switch, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
-import { mergeChoices, type MergeChoice } from "./merge.ts"
+import { canReview, mergeChoices, type MergeChoice } from "./merge.ts"
 import { api, type Check, type PrAction, type PrDetail, type PrFile, type PrRef, type PrSummary } from "./rpc.ts"
 import {
   checkCounts,
@@ -605,9 +605,14 @@ function PrView(props: {
     if (picked) await choose(picked)
   }
 
+  const reviewable = () => {
+    const pr = detail()
+    return !!pr && canReview(pr)
+  }
+
   async function approve() {
     const pr = detail()
-    if (!pr || pr.state !== "OPEN") return
+    if (!pr || !canReview(pr)) return
     const ok = await context.ui.dialog.confirm({
       title: `Approve #${pr.number}?`,
       message: pr.title,
@@ -625,7 +630,7 @@ function PrView(props: {
 
   async function requestChanges() {
     const pr = detail()
-    if (!pr || pr.state !== "OPEN") return
+    if (!pr || !canReview(pr)) return
     const body = await context.ui.dialog.prompt({
       title: `Request changes on #${pr.number}`,
       placeholder: "What needs to change?",
@@ -700,9 +705,15 @@ function PrView(props: {
         run: () => void pickFile(),
       },
       { title: "Merge…", group: "GitHub", bind: "m", run: () => void mergeMenu() },
-      { title: "Approve", group: "GitHub", bind: "a", run: () => void approve() },
+      { title: "Approve", group: "GitHub", bind: "a", enabled: reviewable, run: () => void approve() },
       { title: "Comment", group: "GitHub", bind: "c", run: () => void comment() },
-      { title: "Request changes", group: "GitHub", bind: "shift+r", run: () => void requestChanges() },
+      {
+        title: "Request changes",
+        group: "GitHub",
+        bind: "shift+r",
+        enabled: reviewable,
+        run: () => void requestChanges(),
+      },
       {
         title: "Open in browser",
         group: "GitHub",
@@ -860,8 +871,8 @@ function PrView(props: {
       </Show>
       <Footer
         context={context}
-        hints={
-          props.page === "files"
+        hints={(
+          (props.page === "files"
             ? [
                 ["n/p", "file"],
                 ["/", "pick"],
@@ -879,8 +890,8 @@ function PrView(props: {
                 ["o", "browser"],
                 ["r", "refresh"],
                 ["esc", "back"],
-              ]
-        }
+              ]) satisfies [string, string][]
+        ).filter(([key]) => key !== "a" || reviewable())}
       />
     </box>
   )
