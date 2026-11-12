@@ -1,6 +1,21 @@
 import { expect, test } from "bun:test"
 import type { PrSummary } from "./rpc.ts"
-import { api, parsePrSummary } from "./rpc.ts"
+import { api, parsePrAction, parsePrSummary } from "./rpc.ts"
+
+test("PR actions from clients cannot smuggle gh flags such as --admin", () => {
+  expect(() => parsePrAction({ type: "merge", method: "admin" })).toThrow()
+  expect(() => parsePrAction({ type: "merge-stack", method: "squash --admin" })).toThrow()
+  expect(() => parsePrAction({ type: "merge", admin: true })).toThrow()
+  expect(() => parsePrAction({ type: "force-merge" })).toThrow()
+  expect(parsePrAction({ type: "merge" })).toEqual({ type: "merge" })
+  expect(parsePrAction({ type: "merge", method: "squash", auto: true })).toEqual({
+    type: "merge",
+    method: "squash",
+    auto: true,
+  })
+  expect(parsePrAction({ type: "merge-stack", method: "rebase" })).toEqual({ type: "merge-stack", method: "rebase" })
+  expect(parsePrAction({ type: "comment", body: "hi" })).toEqual({ type: "comment", body: "hi" })
+})
 
 const summary: PrSummary = {
   owner: "lovablelabs",

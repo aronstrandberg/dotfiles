@@ -167,6 +167,19 @@ export interface PrDetail extends PrSummary {
   readonly viewerPermission: string | null
   /** The `gh` account the server acts as. */
   readonly viewerLogin: string
+  /** The GitHub stack this PR belongs to, members bottom first; `null` for a standalone PR or a repo without stacks. */
+  readonly stack: PrStack | null
+}
+
+export interface PrStack {
+  readonly number: number
+  /** The branch the whole stack targets. */
+  readonly base: string
+  readonly members: readonly {
+    readonly number: number
+    readonly state: "open" | "merged" | "closed"
+    readonly draft: boolean
+  }[]
 }
 
 export interface PrFile {
@@ -181,12 +194,79 @@ export interface PrFile {
 
 export type PrAction =
   | { readonly type: "merge"; readonly method?: MergeMethod; readonly auto?: boolean }
+  | { readonly type: "merge-stack"; readonly method: MergeMethod }
   | { readonly type: "disable-auto" }
   | { readonly type: "ready" }
   | { readonly type: "draft" }
   | { readonly type: "comment"; readonly body: string }
   | { readonly type: "approve"; readonly body?: string }
   | { readonly type: "request-changes"; readonly body: string }
+
+const METHODS: readonly MergeMethod[] = ["squash", "merge", "rebase"]
+
+/**
+ * Parses an action a client asks the server to run with `gh`.
+ *
+ * Only known fields of known types pass, so no input becomes a `gh` flag the plugin did not choose.
+ *
+ * @throws TypeError for any other shape.
+ */
+export function parsePrAction(value: unknown): PrAction {
+  if (typeof value !== "object" || value === null) throw new TypeError("Invalid pull request action")
+  const field = (name: string): unknown => Reflect.get(value, name)
+  const keys = (...allowed: string[]) => {
+    const extra = Object.keys(value).filter((key) => key !== "type" && !allowed.includes(key))
+    if (extra.length > 0) throw new TypeError(`Unexpected pull request action fields: ${extra.join(", ")}`)
+  }
+  const method = (required: boolean): MergeMethod | undefined => {
+    const result = field("method")
+    if (result === undefined && !required) return undefined
+    const match = METHODS.find((candidate) => candidate === result)
+    if (!match) throw new TypeError("Invalid merge method")
+    return match
+  }
+  const text = (name: string, required: boolean) => {
+    const result = field(name)
+    if (result === undefined && !required) return undefined
+    if (typeof result !== "string") throw new TypeError(`Invalid pull request action field: ${name}`)
+    return result
+  }
+  const type = field("type")
+  switch (type) {
+    case "merge": {
+      keys("method", "auto")
+      const auto = field("auto")
+      if (auto !== undefined && typeof auto !== "boolean")
+        throw new TypeError("Invalid pull request action field: auto")
+      const chosen = method(false)
+      return { type: "merge", ...(chosen ? { method: chosen } : {}), ...(auto === undefined ? {} : { auto }) }
+    }
+    case "merge-stack": {
+      keys("method")
+      const chosen = method(true)
+      if (!chosen) throw new TypeError("Invalid merge method")
+      return { type: "merge-stack", method: chosen }
+    }
+    case "disable-auto":
+    case "ready":
+    case "draft": {
+      keys()
+      return { type }
+    }
+    case "comment":
+    case "request-changes": {
+      keys("body")
+      return { type, body: text("body", true) ?? "" }
+    }
+    case "approve": {
+      keys("body")
+      const body = text("body", false)
+      return body === undefined ? { type: "approve" } : { type: "approve", body }
+    }
+    default:
+      throw new TypeError("Unknown pull request action")
+  }
+}
 
 const ref = {
   owner: { type: "string" },

@@ -3,7 +3,7 @@ import { Plugin } from "@opencode/plugin"
 import { PrCardLeases } from "./capability.ts"
 import * as GitHub from "./github.ts"
 import { addPrCardInstruction, parsePrCardPayload, resolvePrCard } from "./pr-card.ts"
-import { GhPrs, type PrAction, type PrRef } from "./rpc.ts"
+import { GhPrs, parsePrAction, type PrRef } from "./rpc.ts"
 import { GitHubLoadPool, RepositoryCache, SummaryCache } from "./summary-cache.ts"
 import { createTracker } from "./tracker.ts"
 import { trackerTools } from "./tracker-tools.ts"
@@ -143,9 +143,11 @@ export default Plugin.define({
         }
       },
       act: async (input, call) => {
-        const { action } = input as { action: PrAction }
         try {
           const ref = checked(input)
+          const action = parsePrAction(
+            typeof input === "object" && input !== null ? Reflect.get(input, "action") : null,
+          )
           cache.invalidate(ref)
           return await GitHub.act(ref, action, { gh })
         } catch (error) {

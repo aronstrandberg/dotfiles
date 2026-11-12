@@ -15,6 +15,7 @@ import type {
 } from "./rpc.ts"
 import { visibleMarkdown } from "./shared.ts"
 import { ciStatus, githubCheckCounts } from "./ci.ts"
+import { parseStacks } from "./pr-stack.ts"
 
 export class GhError extends Error {
   constructor(
@@ -30,7 +31,10 @@ export interface GhOptions {
   readonly signal?: AbortSignal
 }
 
-export function gh(args: string[], options: GhOptions & { cwd?: string; stdin?: string }) {
+export function gh(
+  args: string[],
+  options: GhOptions & { cwd?: string; stdin?: string; env?: Readonly<Record<string, string>> },
+) {
   return new Promise<string>((resolve, reject) => {
     const child = execFile(
       options.gh,
@@ -40,7 +44,14 @@ export function gh(args: string[], options: GhOptions & { cwd?: string; stdin?: 
         maxBuffer: 256 * 1024 * 1024,
         timeout: 120_000,
         signal: options.signal,
-        env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1", GH_NO_UPDATE_NOTIFIER: "1" },
+        env: {
+          ...process.env,
+          ...options.env,
+          GH_PROMPT_DISABLED: "1",
+          NO_COLOR: "1",
+          GH_NO_UPDATE_NOTIFIER: "1",
+          GH_NO_EXTENSION_UPDATE_NOTIFIER: "1",
+        },
       },
       (error, stdout, stderr) => {
         if (error) {
@@ -320,7 +331,10 @@ export async function detail(ref: PrRef, options: GhOptions): Promise<PrDetail> 
     createdAt: raw.createdAt,
     url: raw.url,
   })
-  const queue = await mergeQueueEnabled(ref, pr.baseRefName, options).catch(() => null)
+  const [queue, stack] = await Promise.all([
+    mergeQueueEnabled(ref, pr.baseRefName, options).catch(() => null),
+    stackOf(ref, options),
+  ])
   return {
     ...summary,
     body: visibleMarkdown(pr.body ?? ""),
@@ -364,6 +378,18 @@ export async function detail(ref: PrRef, options: GhOptions): Promise<PrDetail> 
     defaultMergeMethod: methods.includes(defaultMethod) ? defaultMethod : (methods[0] ?? "merge"),
     viewerPermission: repo.viewerPermission ?? null,
     viewerLogin: data.viewer.login,
+    stack,
+  }
+}
+
+/** The GitHub stack containing the PR, or `null` for a standalone PR or a repository without stacked PRs (404). */
+async function stackOf(ref: PrRef, options: GhOptions) {
+  try {
+    const out = await gh(["api", `repos/${ref.owner}/${ref.repo}/stacks?pull_request=${ref.number}`], options)
+    return parseStacks(JSON.parse(out), ref.number)
+  } catch (error) {
+    if (error instanceof GhError && /HTTP 404/.test(error.message)) return null
+    throw error
   }
 }
 
@@ -421,6 +447,13 @@ export async function act(ref: PrRef, action: PrAction, options: GhOptions): Pro
       if (action.auto) args.push("--auto")
       const out = await gh(args, options)
       return { message: out.trim() || (action.auto ? "Auto-merge enabled" : "Merge requested") }
+    }
+    case "merge-stack": {
+      const out = await gh(["stack", "merge", String(ref.number), "--yes", "--merge-method", action.method], {
+        ...options,
+        env: { GH_REPO: `${ref.owner}/${ref.repo}` },
+      })
+      return { message: out.trim() || "Stack added to the merge queue" }
     }
     case "disable-auto":
       await gh(["pr", "merge", ...target, "--disable-auto"], options)

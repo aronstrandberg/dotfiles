@@ -11,6 +11,32 @@ export interface MergeChoice {
 
 export type MergeMenuEntry = MergeChoice | "separator" | { readonly group: string; readonly items: MergeChoice[] }
 
+function list(numbers: readonly number[]) {
+  const refs = numbers.map((number) => `#${number}`)
+  return refs.length < 2 ? refs.join("") : `${refs.slice(0, -1).join(", ")} and ${refs.at(-1)}`
+}
+
+/**
+ * Queue for a PR in a GitHub stack: `gh stack merge` lands every open PR from the bottom up to this one as one
+ * all-or-nothing merge, through the queue when the stack's base has one. It also handles a PR whose lower PRs merged
+ * before its base was retargeted.
+ */
+function stackQueue(pr: PrDetail): MergeChoice | undefined {
+  const members = pr.stack?.members
+  const index = members?.findIndex((member) => member.number === pr.number) ?? -1
+  if (!members || index < 0) return undefined
+  const open = members.slice(0, index + 1).filter((member) => member.state === "open")
+  if (open.some((member) => member.draft)) return undefined
+  const numbers = open.map((member) => member.number)
+  return {
+    label: numbers.length > 1 ? `Queue stack (${numbers.length} PRs)` : "Queue",
+    icon: "check",
+    action: { type: "merge-stack", method: pr.defaultMergeMethod },
+    pending: "Adding the stack to the merge queue…",
+    confirm: { title: `Queue ${list(numbers)}?`, confirm: "Queue" },
+  }
+}
+
 /** Whether the viewer may approve or request changes: GitHub refuses both on a PR you authored. */
 export function canReview(pr: Pick<PrDetail, "state" | "author" | "viewerLogin">) {
   return pr.state === "OPEN" && pr.author.toLowerCase() !== pr.viewerLogin.toLowerCase()
@@ -19,10 +45,12 @@ export function canReview(pr: Pick<PrDetail, "state" | "author" | "viewerLogin">
 /**
  * The merge-related actions a PR offers right now: one primary action and a menu of the rest.
  *
- * No choice bypasses branch protection or the merge queue, and the primary merge action is only ever Queue. Where the
- * base branch has a merge queue, or GitHub could not say, Queue is a bare `gh pr merge`, which queues a PR whose checks
- * passed and otherwise enables auto-merge into the queue. A base without a queue, such as a stacked PR's parent
- * branch, gets no primary merge action; the menu offers merges that name the base branch.
+ * No choice bypasses branch protection or the merge queue, and the primary merge action is only ever a queue. A PR in a
+ * GitHub stack queues the stack up to itself through `gh stack merge`, and gets no merge action while a PR below it is
+ * a draft. Otherwise, where the base branch has a merge queue or GitHub could not say, Queue is a bare `gh pr merge`,
+ * which queues a PR whose checks passed and otherwise enables auto-merge into the queue. A base without a queue, such as
+ * the parent branch of a PR stacked without a GitHub stack, gets no primary merge action; the menu offers merges that
+ * name the base branch.
  */
 export function mergeChoices(pr: PrDetail): { primary?: MergeChoice; menu: MergeMenuEntry[] } {
   if (pr.state !== "OPEN") return { menu: [] }
@@ -60,14 +88,18 @@ export function mergeChoices(pr: PrDetail): { primary?: MergeChoice; menu: Merge
     pending: "Disabling auto-merge…",
   }
 
+  const inStack = pr.stack?.members.some((member) => member.number === pr.number) ?? false
+  const stacked = inStack ? stackQueue(pr) : undefined
+
   let primary: MergeChoice | undefined
   if (pr.isDraft) primary = draftToggle
   else if (pr.autoMerge) primary = disableAuto
   else if (pr.isInMergeQueue) primary = undefined
+  else if (inStack) primary = stacked
   else if (queued) primary = queue
 
   const menu: MergeMenuEntry[] = []
-  if (!pr.isDraft && !pr.isInMergeQueue && !queued) {
+  if (!pr.isDraft && !pr.isInMergeQueue && !queued && !inStack) {
     menu.push(...pr.mergeMethods.map((method) => merge(method, false)))
     menu.push({ group: "When requirements pass", items: pr.mergeMethods.map((method) => merge(method, true)) })
   }

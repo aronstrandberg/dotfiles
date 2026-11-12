@@ -81,13 +81,26 @@ local server and the VM to use the table with remote sessions.
     box. **Quote in prompt** quotes a comment into the composer. Bots and resolved threads can
     be hidden.
   - **Files:** a filterable diff per file. **Open in workspace** opens the file locally.
-- The header's merge button is **Queue** when the base branch has a merge queue, or when
-  GitHub can't say. It runs a bare `gh pr merge`, which queues a PR whose checks passed
-  and otherwise enables auto-merge into the queue. A base without a queue, such as a
-  stacked PR's parent branch, gets no merge button; the menu offers merges whose labels
-  name that branch. Nothing bypasses branch protection or the queue: the plugin never
-  passes `--admin`. The button is **Ready for review** on drafts and **Disable
-  auto-merge** while auto-merge is on. Each merge asks first.
+- The header's merge button only ever queues:
+  - A PR in a GitHub stack shows **Queue stack (N PRs)**, or **Queue** when it is the
+    lowest open PR. It runs `gh stack merge <pr> --yes`, which lands every open PR from
+    the bottom up to this one as one all-or-nothing merge, through the queue when the
+    stack's base has one. The confirmation lists the PRs. While a PR below is a draft,
+    there is no merge button. The stack comes from GitHub's Stacks API
+    (`GET /repos/{owner}/{repo}/stacks?pull_request=N`), so the
+    [`gh stack`](https://github.com/github/gh-stack) extension must be installed where
+    the server runs.
+  - Any other PR shows **Queue** when its base branch has a merge queue, or when GitHub
+    can't say. It runs a bare `gh pr merge`, which queues a PR whose checks passed and
+    otherwise enables auto-merge into the queue.
+  - A base without a queue, such as the parent of a PR stacked by branch only, gets no
+    merge button; the menu offers merges whose labels name that branch.
+
+  Nothing bypasses branch protection or the queue: the plugin never passes `--admin`, and
+  the server parses every action, so a client cannot add `gh` flags. The button is **Ready
+  for review** on drafts and **Disable auto-merge** while auto-merge is on. Each merge
+  asks first.
+
 - **Approve** and **Request changes** are hidden on PRs you authored, which GitHub
   refuses anyway.
 - On narrow screens (the web app on a phone, or any window under 768px) the panel becomes
