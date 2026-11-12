@@ -22,7 +22,7 @@ export function trackerTools(tracker: ReturnType<typeof createTracker>) {
     register: {
       name: "register",
       description:
-        "Register a PR created for this session, or explicitly taken over at the user's request. Returns its saved work status. Preserves existing status on repeated calls. Does not register PRs merely read or discussed, and does not modify GitHub.",
+        "Register a PR this session created, took over at the user's request, or waits on, such as another person's base PR that must merge first. Returns its saved work status. Preserves existing status on repeated calls. Does not register PRs merely read or discussed, and does not modify GitHub.",
       input,
       options,
       execute: async (value: unknown, context: Context) => ({

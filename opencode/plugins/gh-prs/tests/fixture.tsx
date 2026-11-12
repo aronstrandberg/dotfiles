@@ -34,6 +34,15 @@ const prs: PrSummary[] = [
     checkCounts: { success: 12, failure: 0, pending: 0, skipped: 1, neutral: 0, unknown: 0 },
   },
   { ...first, number: 999, title: "Unrelated PR mentioned in chat" },
+  {
+    ...first,
+    number: 460,
+    title: "Teammate's base PR",
+    author: "mikn",
+    state: "MERGED",
+    checks: "success",
+    checkCounts: { success: 20, failure: 0, pending: 0, skipped: 0, neutral: 0, unknown: 0 },
+  },
 ]
 const tracked: TrackedPr[] = [
   {
@@ -58,6 +67,14 @@ const tracked: TrackedPr[] = [
     number: 458,
     state: "blocked",
     note: "Waiting for the base PR",
+    updatedAt: Date.now(),
+  },
+  {
+    owner: "lovablelabs",
+    repo: "lovable",
+    number: 460,
+    state: "blocked",
+    note: "Mikael owns this; our PR needs it merged first",
     updatedAt: Date.now(),
   },
 ]

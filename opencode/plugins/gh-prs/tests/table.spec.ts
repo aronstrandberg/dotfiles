@@ -5,7 +5,7 @@ test("shows only registered PRs, with CI failures separate from agent work statu
 
   const table = page.getByRole("table")
   await expect(table.getByRole("columnheader")).toHaveText(["Pull request", "CI", "Review", "Work status"])
-  await expect(table.getByRole("row")).toHaveCount(4)
+  await expect(table.getByRole("row")).toHaveCount(5)
   const failing = table.getByRole("row").filter({ hasText: "Fix collector rollout" })
   await expect(failing).toContainText("2 failing")
   await expect(failing).toContainText("3 running / queued")
@@ -22,12 +22,20 @@ test("keeps blockers and user actions visible when GitHub data is unavailable", 
   await page.goto("/")
   const waiting = page.getByRole("row").filter({ hasText: "Waiting for you" })
   await expect(waiting).toContainText("Approve the production change")
-  const blocked = page.getByRole("row").filter({ hasText: "Blocked" })
+  const blocked = page.getByRole("row").filter({ hasText: "Waiting for the base PR" })
   await expect(blocked).toContainText("Unavailable")
   await expect(blocked).toContainText("Waiting for the base PR")
   await blocked.getByRole("button", { name: "lovable#458", exact: true }).focus()
   await page.keyboard.press("Enter")
   await expect(page.getByRole("status")).toHaveText("lovablelabs/lovable#458:overview")
+})
+
+test("a merged dependency shows GitHub's merged state next to a stale blocked report", async ({ page }) => {
+  await page.goto("/")
+  const dependency = page.getByRole("row").filter({ hasText: "Teammate's base PR" })
+  await expect(dependency).toContainText("Merged")
+  await expect(dependency).toContainText("Blocked")
+  await expect(dependency).toContainText("Mikael owns this")
 })
 
 test("a narrow panel scrolls the table without making the page wider", async ({ page }) => {

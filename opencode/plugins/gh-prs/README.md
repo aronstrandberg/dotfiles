@@ -1,8 +1,12 @@
 # opencode-gh-prs
 
-Track the GitHub pull requests created for a session. The agent explicitly registers
-each PR; links in chat and the current branch do not add entries. You can ask the
-agent to register an existing PR when taking over its work.
+Track the GitHub pull requests a session works on. The agent explicitly registers
+each PR it creates, takes over at your request, or waits on, such as another person's
+base PR. Links in chat and the current branch do not add entries.
+
+The PR column shows GitHub's state (open, draft, queued, merged, closed) next to the
+number. It comes from GitHub, so a merged PR shows as merged even while its work
+status still holds an older report.
 
 The Desktop list is a table with PR, CI, review, and work-status columns. CI comes
 from GitHub's current-commit rollup, with complete passed, failing, running/queued,
