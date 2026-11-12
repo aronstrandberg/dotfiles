@@ -26,7 +26,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.tui.json"
   },
   "dependencies": {
-    "@opencode/plugin": "0.0.0-dev-639"
+    "@opencode/plugin": "0.0.0-dev-639",
+    "lucide-solid": "1.72.0"
   },
   "devDependencies": {
     "@opencode/theme": "0.0.0-dev-639",

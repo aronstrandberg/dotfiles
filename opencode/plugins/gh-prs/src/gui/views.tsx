@@ -157,7 +157,7 @@ export function ListView(props: { app: App; session: MountedSession }) {
               <PrList
                 tracked={mentions()?.tracked ?? []}
                 prs={mentions()?.prs ?? []}
-                onOpen={(ref, page) => props.app.openPr(props.session, ref, page)}
+                onOpen={(ref) => props.app.openPr(props.session, ref)}
               />
             }
           >
