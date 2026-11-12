@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js"
 import { render } from "solid-js/web"
-import { PrTable } from "../src/gui/pr-table.tsx"
+import { PrList } from "../src/gui/pr-list.tsx"
 import { css } from "../src/gui/styles.ts"
 import { prKey } from "../src/shared.ts"
 import type { PrSummary } from "../src/rpc.ts"
@@ -107,7 +107,7 @@ function Fixture() {
       <div class="ghp">
         <div class="ghp-list-head">Pull requests · Registered by this session</div>
         <div class="ghp-scroll">
-          <PrTable
+          <PrList
             tracked={tracked}
             prs={prs}
             onOpen={(ref, page) => setOpened(`${prKey(ref)}:${page ?? "overview"}`)}

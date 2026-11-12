@@ -4,16 +4,17 @@ Track the GitHub pull requests a session works on. The agent explicitly register
 each PR it creates, takes over at your request, or waits on, such as another person's
 base PR. Links in chat and the current branch do not add entries.
 
-The Desktop list has two views. **Table** has PR, CI, and work-status columns. The line
-under each title shows GitHub's state (open, draft, queued, merged, closed) and the
-review decision. Both come from GitHub, so a merged PR shows as merged even while its
-work status still holds an older report.
+The Desktop panel has two views. **List** stacks each PR's details on short lines that
+fit a narrow sidebar: the title; the reference with GitHub's state (open, draft, queued,
+merged, closed) and review decision; CI; and the work status with its note. State and
+review come from GitHub, so a merged PR shows as merged even while its work status
+still holds an older report.
 
-The CI column says one of three things about the current commit: **All green**,
+The CI line says one of three things about the current commit: **All green**,
 **N failing** with the failing checks named, or **N running** with the unfinished
 checks named. Counts come from GitHub's full rollup; names cover the first 100
 checks. Cancelled checks, which GitHub leaves behind after a merge or a newer push,
-don't count as failing. Merged and closed PRs show no CI. Click the CI cell to open
+don't count as failing. Merged and closed PRs show no CI. Click the CI line to open
 check details.
 
 **Stack** draws the registered PRs as a Mermaid graph: each PR sits on the PR whose

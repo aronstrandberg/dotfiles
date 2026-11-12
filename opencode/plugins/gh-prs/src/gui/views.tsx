@@ -17,7 +17,7 @@ import {
 import { mergeChoices, type MergeChoice } from "../merge.ts"
 import { errorText, type App, type Page } from "./state.ts"
 import { prSections } from "./sections.ts"
-import { PrTable } from "./pr-table.tsx"
+import { PrList } from "./pr-list.tsx"
 import { stackMermaid } from "../stack.ts"
 
 const POLL_MS = 30_000
@@ -85,7 +85,7 @@ export function ListView(props: { app: App; session: MountedSession }) {
     if (panel.visible() && !mentions()?.loading) void props.app.load(props.session)
   }, POLL_MS)
   onCleanup(() => clearInterval(timer))
-  const [view, setView] = createSignal<"table" | "stack">("table")
+  const [view, setView] = createSignal<"list" | "stack">("list")
   const ordered = createMemo(() => {
     const byKey = new Map((mentions()?.prs ?? []).map((pr) => [prKey(pr), pr]))
     return (mentions()?.tracked ?? []).flatMap((tracked) => byKey.get(prKey(tracked)) ?? [])
@@ -105,7 +105,7 @@ export function ListView(props: { app: App; session: MountedSession }) {
           <For
             each={
               [
-                { id: "table", label: "Table" },
+                { id: "list", label: "List" },
                 { id: "stack", label: "Stack" },
               ] as const
             }
@@ -154,7 +154,7 @@ export function ListView(props: { app: App; session: MountedSession }) {
           <Show
             when={view() === "stack"}
             fallback={
-              <PrTable
+              <PrList
                 tracked={mentions()?.tracked ?? []}
                 prs={mentions()?.prs ?? []}
                 onOpen={(ref, page) => props.app.openPr(props.session, ref, page)}
