@@ -6,6 +6,20 @@ local opt = vim.opt
 opt.backspace = { "indent", "eol", "start" }
 opt.breakindent = true
 opt.clipboard = "unnamedplus"
+
+-- Headless Linux has no clipboard tool, so copy through the terminal with OSC 52.
+-- Paste reads the unnamed register, since terminals rarely answer OSC 52 reads.
+if vim.fn.has("mac") == 0 and vim.env.DISPLAY == nil and vim.env.WAYLAND_DISPLAY == nil then
+  local osc52 = require("vim.ui.clipboard.osc52")
+  local function paste()
+    return { vim.fn.split(vim.fn.getreg(""), "\n"), vim.fn.getregtype("") }
+  end
+  vim.g.clipboard = {
+    name = "OSC 52",
+    copy = { ["+"] = osc52.copy("+"), ["*"] = osc52.copy("*") },
+    paste = { ["+"] = paste, ["*"] = paste },
+  }
+end
 opt.completeopt = { "menu", "menuone", "noselect" }
 opt.cursorline = true
 opt.expandtab = true
