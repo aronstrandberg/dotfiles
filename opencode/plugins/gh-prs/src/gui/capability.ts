@@ -1,36 +1,39 @@
 import { onCleanup, type Accessor } from "solid-js"
 import { createKeyed } from "@opencode/plugin/gui"
 
-/** Whether this GUI can register and render `gh-pr` code blocks. */
-export function supportsPrCardRenderer<Registry>(
+/** Card languages supported by this Desktop capability lease. */
+export const GITHUB_CARD_LANGUAGES = ["gh-pr", "gh-run"] as const
+
+/** Whether this GUI can register and render GitHub assistant-card code blocks. */
+export function supportsGitHubCardRenderer<Registry>(
   platform: string,
   registry: Registry | undefined,
 ): registry is Registry {
   return platform === "desktop" && registry !== undefined
 }
 
-/** Registers the renderer before starting session capability negotiation on supported Desktop hosts. */
-export function enablePrCardCapability<Registry>(
+/** Registers all renderers before starting session capability negotiation on supported Desktop hosts. */
+export function enableGitHubCardCapability<Registry>(
   platform: string,
   registry: Registry | undefined,
   register: (registry: Registry) => void,
   maintain: () => void,
 ): boolean {
-  if (!supportsPrCardRenderer(platform, registry)) return false
+  if (!supportsGitHubCardRenderer(platform, registry)) return false
   register(registry)
   maintain()
   return true
 }
 
 /** Session identity and client needed to negotiate one renderer lease. */
-export interface PrCardLeaseSession<Client> {
+export interface GitHubCardLeaseSession<Client> {
   readonly key: string
   readonly id: string
   readonly server?: { readonly client: Client }
 }
 
 /** Client operations used by the GUI lease lifecycle. */
-export interface PrCardLeaseApi {
+export interface GitHubCardLeaseApi {
   lease(
     input: { readonly sessionID: string; readonly token: string },
     signal: AbortSignal,
@@ -39,17 +42,17 @@ export interface PrCardLeaseApi {
 }
 
 /** Dependencies for the window-owned capability lifecycle. */
-export interface PrCardLeaseLifecycleOptions<Client> {
-  readonly current: Accessor<PrCardLeaseSession<Client> | undefined>
+export interface GitHubCardLeaseLifecycleOptions<Client> {
+  readonly current: Accessor<GitHubCardLeaseSession<Client> | undefined>
   readonly fallbackClient: Client
   readonly token: string
   readonly repeat: (task: () => void, milliseconds: number) => () => void
-  readonly api: (client: Client) => PrCardLeaseApi
+  readonly api: (client: Client) => GitHubCardLeaseApi
   readonly onError: (error: unknown) => void
 }
 
 /** Maintains one renewable lease for each session routed in this window. */
-export function maintainPrCardLease<Client>(options: PrCardLeaseLifecycleOptions<Client>): void {
+export function maintainGitHubCardLease<Client>(options: GitHubCardLeaseLifecycleOptions<Client>): void {
   createKeyed(
     options.current,
     (session) => {

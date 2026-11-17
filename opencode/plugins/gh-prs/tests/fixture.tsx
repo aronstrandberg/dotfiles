@@ -1,7 +1,11 @@
-import { createSignal } from "solid-js"
+import { createSignal, ErrorBoundary } from "solid-js"
 import { render } from "solid-js/web"
+import type { CodeBlockProps } from "@opencode/plugin/gui"
 import { PrList } from "../src/gui/pr-list.tsx"
+import { RunCardBlock } from "../src/gui/run-card-view.tsx"
 import { css } from "../src/gui/styles.ts"
+import type { App } from "../src/gui/state.ts"
+import type { RunSummary } from "../src/run.ts"
 import { prKey } from "../src/shared.ts"
 import type { PrSummary } from "../src/rpc.ts"
 import type { TrackedPr } from "../src/work-status.ts"
@@ -98,7 +102,7 @@ const tracked: TrackedPr[] = [
   },
 ]
 
-function Fixture() {
+function PrListFixture() {
   const [opened, setOpened] = createSignal("")
   return (
     <>
@@ -117,6 +121,83 @@ function Fixture() {
       </div>
     </>
   )
+}
+
+const run: RunSummary = {
+  owner: "lovablelabs",
+  repo: "lovable",
+  runID: 12_345,
+  url: "https://github.com/lovablelabs/lovable/actions/runs/12345",
+  workflow: "CI",
+  runNumber: 87,
+  attempt: 2,
+  branch: "feat/run-cards",
+  headSha: "0123456789abcdef0123456789abcdef01234567",
+  event: "pull_request",
+  state: { status: "completed", conclusion: "success" },
+  createdAt: "2026-11-16T10:00:00Z",
+  startedAt: "2026-11-16T10:00:05Z",
+  updatedAt: "2026-11-16T10:02:10Z",
+}
+
+function RunCardFixture(props: { readonly mode: "loading" | "success" | "error" }) {
+  const [opened, setOpened] = createSignal("")
+  const client = {
+    rpc: () => ({
+      resolveRun: async (_input: unknown, options?: { readonly signal?: AbortSignal }) => {
+        if (props.mode === "error") throw new Error("GitHub unavailable")
+        if (props.mode === "loading") {
+          return await new Promise<never>((_resolve, reject) => {
+            options?.signal?.addEventListener("abort", () => reject(options.signal?.reason), { once: true })
+          })
+        }
+        return run
+      },
+    }),
+  }
+  const app = {
+    ctx: {
+      client,
+      system: { openExternal: (url: string) => setOpened(url) },
+      ui: { Icon: () => <span aria-hidden="true">GH</span> },
+    },
+  } as unknown as App
+  const block = {
+    code: run.url,
+    language: "gh-run",
+    session: {
+      key: "local\nsession-1",
+      id: "session-1",
+      directory: "/workspace",
+      server: { client },
+    },
+  } as unknown as CodeBlockProps
+
+  return (
+    <>
+      <style>{css}</style>
+      <ErrorBoundary
+        fallback={(error) => (
+          <pre data-host-fallback="true">
+            {run.url}
+            {"\n"}
+            {error instanceof Error ? error.message : "Unknown error"}
+          </pre>
+        )}
+      >
+        <RunCardBlock app={app} block={block} />
+      </ErrorBoundary>
+      <div role="status">{opened()}</div>
+    </>
+  )
+}
+
+function Fixture() {
+  const fixture = new URLSearchParams(location.search).get("fixture")
+  if (fixture === "run-loading") return <RunCardFixture mode="loading" />
+  if (fixture === "run-success") return <RunCardFixture mode="success" />
+  if (fixture === "run-error") return <RunCardFixture mode="error" />
+  return <PrListFixture />
 }
 
 const root = document.getElementById("root")

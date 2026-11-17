@@ -58,14 +58,20 @@ local server and the VM to use the table with remote sessions.
   `https://github.com/<owner>/<repo>/pull/<number>` URL, one `<owner>/<repo>#<number>`
   reference, or a bare `#<number>`. Bare references use the GitHub repository associated
   with the session directory. Clicking a card opens the existing PR side panel.
-- The card renderer is Desktop-only. After a window registers the experimental `CodeBlock`
-  renderer, it renews a short-lived capability lease for the session routed in that window.
-  Only a session with an active lease tells the agent to emit `gh-pr` fences. Closing the window
+- **GitHub Actions runs mentioned by the agent** render as read-only status cards. A `gh-run`
+  fence accepts exactly one canonical
+  `https://github.com/<owner>/<repo>/actions/runs/<run-id>` URL. The card shows the workflow,
+  run and attempt, branch and commit, event, normalized status or conclusion, and elapsed time
+  or duration. Clicking it opens the run in the system browser. It does not rerun, cancel, or
+  dispatch workflows, and it does not show jobs or logs.
+- The card renderers are Desktop-only. After a window registers both experimental `CodeBlock`
+  languages, it renews a short-lived capability lease for the session routed in that window.
+  Only a session with an active lease tells the agent to emit `gh-pr` or `gh-run` fences. Closing the window
   or routing away releases its lease, and abandoned leases expire after 45 seconds. Separate
   window tokens let several windows view the same session safely.
 - Invalid references and GitHub lookup failures keep the original fenced code block instead of
   showing an empty card. The web app, TUI, and Desktop releases that predate `CodeBlock` never
-  lease the capability, so their agents are not instructed to emit raw `gh-pr` fences. A manual
+  lease the capability, so their agents are not instructed to emit raw card fences. A manual
   or previously persisted fence remains plain code on those hosts.
 - A **PR pill** above the composer shows the session's PRs, colored by CI state. Pick one to
   open it in the side panel.

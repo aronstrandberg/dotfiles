@@ -1,5 +1,6 @@
 import { Rpc } from "@opencode/plugin/rpc"
 import { parseCiCounts, parseCiStatus, type CiCounts, type CiStatus } from "./ci.ts"
+import type { RunState, RunSummary } from "./run.ts"
 import { parseTrackedPr } from "./work-status.ts"
 
 export interface PrRef {
@@ -96,6 +97,119 @@ export function parsePrSummary(value: unknown): PrSummary | null {
     isInMergeQueue: boolean("isInMergeQueue"),
     autoMerge: boolean("autoMerge"),
     ...(branch === undefined ? {} : { branch }),
+  }
+}
+
+/** Parses nullable workflow-run summary output received across the RPC boundary. */
+export function parseRunSummary(value: unknown): RunSummary | null {
+  if (value === null) return null
+  if (typeof value !== "object") throw new TypeError("Invalid workflow run summary RPC output")
+  const allowed = new Set([
+    "owner",
+    "repo",
+    "runID",
+    "url",
+    "workflow",
+    "runNumber",
+    "attempt",
+    "branch",
+    "headSha",
+    "event",
+    "state",
+    "createdAt",
+    "startedAt",
+    "updatedAt",
+  ])
+  const extra = Object.keys(value).filter((key) => !allowed.has(key))
+  if (extra.length > 0) throw new TypeError(`Invalid workflow run summary fields: ${extra.join(", ")}`)
+  const field = (name: string): unknown => Reflect.get(value, name)
+  const text = (name: string): string => {
+    const result = field(name)
+    if (typeof result !== "string" || result === "") throw new TypeError(`Invalid workflow run summary field: ${name}`)
+    return result
+  }
+  const integer = (name: string): number => {
+    const result = field(name)
+    if (typeof result !== "number" || !Number.isSafeInteger(result) || result < 1) {
+      throw new TypeError(`Invalid workflow run summary field: ${name}`)
+    }
+    return result
+  }
+  const branch = field("branch")
+  if (branch !== null && (typeof branch !== "string" || branch === "")) {
+    throw new TypeError("Invalid workflow run summary field: branch")
+  }
+  const startedAt = field("startedAt")
+  if (startedAt !== null && typeof startedAt !== "string") {
+    throw new TypeError("Invalid workflow run summary field: startedAt")
+  }
+  const state = parseRunSummaryState(field("state"))
+  const run: RunSummary = {
+    owner: text("owner"),
+    repo: text("repo"),
+    runID: integer("runID"),
+    url: text("url"),
+    workflow: text("workflow"),
+    runNumber: integer("runNumber"),
+    attempt: integer("attempt"),
+    branch,
+    headSha: text("headSha"),
+    event: text("event"),
+    state,
+    createdAt: text("createdAt"),
+    startedAt,
+    updatedAt: text("updatedAt"),
+  }
+  if (run.url !== `https://github.com/${run.owner}/${run.repo}/actions/runs/${run.runID}`) {
+    throw new TypeError("Invalid workflow run summary field: url")
+  }
+  if (!/^[0-9a-f]{40}$/i.test(run.headSha)) throw new TypeError("Invalid workflow run summary field: headSha")
+  for (const [name, timestamp] of [
+    ["createdAt", run.createdAt],
+    ["startedAt", run.startedAt],
+    ["updatedAt", run.updatedAt],
+  ] as const) {
+    if (timestamp !== null && !Number.isFinite(Date.parse(timestamp))) {
+      throw new TypeError(`Invalid workflow run summary field: ${name}`)
+    }
+  }
+  return run
+}
+
+function parseRunSummaryState(value: unknown): RunState {
+  if (typeof value !== "object" || value === null) throw new TypeError("Invalid workflow run summary field: state")
+  const status: unknown = Reflect.get(value, "status")
+  const conclusion: unknown = Reflect.get(value, "conclusion")
+  switch (status) {
+    case "queued":
+    case "in_progress":
+    case "requested":
+    case "waiting":
+    case "pending":
+      if (Object.keys(value).some((key) => key !== "status")) {
+        throw new TypeError("Invalid workflow run summary field: state")
+      }
+      return { status }
+    case "completed":
+      if (Object.keys(value).some((key) => key !== "status" && key !== "conclusion")) {
+        throw new TypeError("Invalid workflow run summary field: state")
+      }
+      switch (conclusion) {
+        case "success":
+        case "failure":
+        case "neutral":
+        case "cancelled":
+        case "skipped":
+        case "timed_out":
+        case "action_required":
+        case "stale":
+        case "startup_failure":
+          return { status, conclusion }
+        default:
+          throw new TypeError("Invalid workflow run summary field: state")
+      }
+    default:
+      throw new TypeError("Invalid workflow run summary field: state")
   }
 }
 
@@ -340,6 +454,77 @@ const prSummary = {
   additionalProperties: false,
 } as const
 const nullablePrSummary = { anyOf: [prSummary, { type: "null" }] } as const
+const runState = {
+  anyOf: [
+    {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["queued", "in_progress", "requested", "waiting", "pending"] },
+      },
+      required: ["status"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["completed"] },
+        conclusion: {
+          type: "string",
+          enum: [
+            "success",
+            "failure",
+            "neutral",
+            "cancelled",
+            "skipped",
+            "timed_out",
+            "action_required",
+            "stale",
+            "startup_failure",
+          ],
+        },
+      },
+      required: ["status", "conclusion"],
+      additionalProperties: false,
+    },
+  ],
+} as const
+const runSummary = {
+  type: "object",
+  properties: {
+    owner: { type: "string", minLength: 1 },
+    repo: { type: "string", minLength: 1 },
+    runID: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+    url: { type: "string", minLength: 1 },
+    workflow: { type: "string", minLength: 1 },
+    runNumber: { type: "integer", minimum: 1 },
+    attempt: { type: "integer", minimum: 1 },
+    branch: { anyOf: [{ type: "string", minLength: 1 }, { type: "null" }] },
+    headSha: { type: "string", minLength: 1 },
+    event: { type: "string", minLength: 1 },
+    state: runState,
+    createdAt: { type: "string", minLength: 1 },
+    startedAt: { anyOf: [{ type: "string", minLength: 1 }, { type: "null" }] },
+    updatedAt: { type: "string", minLength: 1 },
+  },
+  required: [
+    "owner",
+    "repo",
+    "runID",
+    "url",
+    "workflow",
+    "runNumber",
+    "attempt",
+    "branch",
+    "headSha",
+    "event",
+    "state",
+    "createdAt",
+    "startedAt",
+    "updatedAt",
+  ],
+  additionalProperties: false,
+} as const
+const nullableRunSummary = { anyOf: [runSummary, { type: "null" }] } as const
 const cardLeaseInput = {
   type: "object",
   properties: {
@@ -376,6 +561,16 @@ export const GhPrs = Rpc.define({
         additionalProperties: false,
       },
       output: nullablePrSummary,
+      errors,
+    },
+    resolveRun: {
+      input: {
+        type: "object",
+        properties: { reference: { type: "string" } },
+        required: ["reference"],
+        additionalProperties: false,
+      },
+      output: nullableRunSummary,
       errors,
     },
     cardLease: {
@@ -444,6 +639,8 @@ export function api(client: { rpc(definition: typeof GhPrs): unknown }) {
     },
     resolve: async (input: { reference: string; directory?: string }, signal?: AbortSignal) =>
       parsePrSummary(await rpc.resolve(input, { signal })),
+    resolveRun: async (input: { reference: string }, signal?: AbortSignal) =>
+      parseRunSummary(await rpc.resolveRun(input, { signal })),
     cardLease: async (input: { sessionID: string; token: string }, signal?: AbortSignal) =>
       parseCardLease(await rpc.cardLease(input, { signal })),
     cardRelease: async (input: { sessionID: string; token: string }) => parseCardRelease(await rpc.cardRelease(input)),
@@ -454,18 +651,18 @@ export function api(client: { rpc(definition: typeof GhPrs): unknown }) {
 }
 
 function parseCardLease(value: unknown): { readonly expiresAt: number } {
-  if (typeof value !== "object" || value === null) throw new TypeError("Invalid PR card capability lease output")
+  if (typeof value !== "object" || value === null) throw new TypeError("Invalid GitHub card capability lease output")
   const expiresAt = Reflect.get(value, "expiresAt")
   if (typeof expiresAt !== "number" || !Number.isInteger(expiresAt) || expiresAt < 0) {
-    throw new TypeError("Invalid PR card capability lease output")
+    throw new TypeError("Invalid GitHub card capability lease output")
   }
   return { expiresAt }
 }
 
 function parseCardRelease(value: unknown): { readonly released: boolean } {
-  if (typeof value !== "object" || value === null) throw new TypeError("Invalid PR card capability release output")
+  if (typeof value !== "object" || value === null) throw new TypeError("Invalid GitHub card capability release output")
   const released = Reflect.get(value, "released")
-  if (typeof released !== "boolean") throw new TypeError("Invalid PR card capability release output")
+  if (typeof released !== "boolean") throw new TypeError("Invalid GitHub card capability release output")
   return { released }
 }
 

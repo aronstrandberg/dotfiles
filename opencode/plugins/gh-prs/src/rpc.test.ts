@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test"
 import type { PrSummary } from "./rpc.ts"
-import { api, parsePrAction, parsePrSummary } from "./rpc.ts"
+import { api, GhPrs, parsePrAction, parsePrSummary, parseRunSummary } from "./rpc.ts"
+import type { RunSummary } from "./run.ts"
 
 test("PR actions from clients cannot smuggle gh flags such as --admin", () => {
   expect(() => parsePrAction({ type: "merge", method: "admin" })).toThrow()
@@ -78,4 +79,54 @@ test("parses capability lease output at the client RPC boundary", async () => {
   const leasing = api(client).cardLease({ sessionID: "session-1", token: "window-1" })
 
   await expect(leasing).rejects.toThrow("lease")
+})
+
+const run: RunSummary = {
+  owner: "lovablelabs",
+  repo: "lovable",
+  runID: 12_345,
+  url: "https://github.com/lovablelabs/lovable/actions/runs/12345",
+  workflow: "CI",
+  runNumber: 87,
+  attempt: 2,
+  branch: "feat/run-cards",
+  headSha: "0123456789abcdef0123456789abcdef01234567",
+  event: "pull_request",
+  state: { status: "completed", conclusion: "success" },
+  createdAt: "2026-11-16T10:00:00Z",
+  startedAt: "2026-11-16T10:00:05Z",
+  updatedAt: "2026-11-16T10:02:10Z",
+}
+
+test("parses nullable workflow run RPC output", () => {
+  expect(parseRunSummary(run)).toEqual(run)
+  expect(parseRunSummary(null)).toBeNull()
+  expect(() => parseRunSummary({ ...run, state: { status: "completed", conclusion: "unknown" } })).toThrow("state")
+  expect(() => parseRunSummary({ ...run, runID: Number.MAX_SAFE_INTEGER + 1 })).toThrow("runID")
+  expect(() => parseRunSummary({ ...run, extra: "untrusted" })).toThrow("fields")
+})
+
+test("parses workflow run resolve output at the client RPC boundary", async () => {
+  const client = {
+    rpc: () => ({
+      resolveRun: async () => ({ ...run, attempt: "two" }),
+    }),
+  }
+
+  const resolving = api(client).resolveRun({
+    reference: "https://github.com/lovablelabs/lovable/actions/runs/12345",
+  })
+
+  await expect(resolving).rejects.toThrow("attempt")
+})
+
+test("defines strict workflow run RPC input and output schemas", () => {
+  const method = GhPrs.methods.resolveRun
+
+  expect(method.input).toMatchObject({
+    type: "object",
+    required: ["reference"],
+    additionalProperties: false,
+  })
+  expect(method.output).toMatchObject({ anyOf: [{ type: "object", additionalProperties: false }, { type: "null" }] })
 })

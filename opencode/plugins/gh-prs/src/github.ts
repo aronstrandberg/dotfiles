@@ -16,6 +16,7 @@ import type {
 import { visibleMarkdown } from "./shared.ts"
 import { ciStatus, githubCheckCounts } from "./ci.ts"
 import { parseStacks } from "./pr-stack.ts"
+import { parseRun, type RunRef, type RunSummary } from "./run.ts"
 
 export class GhError extends Error {
   constructor(
@@ -189,6 +190,12 @@ export async function repository(
   })
   const match = /^([\w.-]+)\/([\w.-]+)$/.exec(output.trim())
   return match ? { owner: match[1]!, repo: match[2]! } : undefined
+}
+
+/** One GitHub Actions workflow run loaded through the authenticated `gh api` transport. */
+export async function workflowRun(ref: RunRef, options: GhOptions, execute: typeof gh = gh): Promise<RunSummary> {
+  const output = await execute(["api", `repos/${ref.owner}/${ref.repo}/actions/runs/${ref.runID}`], options)
+  return parseRun(ref, JSON.parse(output))
 }
 
 export async function branchPr(directory: string, options: GhOptions): Promise<PrRef | undefined> {

@@ -1,4 +1,5 @@
 import type { PrRef, PrSummary } from "./rpc.ts"
+import { addGitHubCardInstruction, GITHUB_CARD_INSTRUCTION } from "./github-card.ts"
 
 /** One complete PR mention parsed from a `gh-pr` fence. */
 export type PrCardMention =
@@ -12,15 +13,11 @@ export interface PrCardSource {
 }
 
 /** Transient agent guidance added to primary session model calls. */
-export const PR_CARD_INSTRUCTION = `OpenCode Desktop can render GitHub pull request title cards. When your assistant answer mentions a GitHub pull request: Keep the ordinary explanatory prose and add a separate closed fenced code block with the language gh-pr for that PR. Put exactly one canonical reference in each block: https://github.com/owner/repo/pull/123, owner/repo#123, or #123 only when it belongs to the session directory's GitHub repository. Do not put prose or multiple references inside the block. Always close the fence. Example:
-
-\`\`\`gh-pr
-owner/repo#123
-\`\`\``
+export const PR_CARD_INSTRUCTION = GITHUB_CARD_INSTRUCTION
 
 /** Adds the transient model instruction used by the server session context hook. */
 export function addPrCardInstruction(system: Array<{ type: "text"; text: string }>): void {
-  system.push({ type: "text", text: PR_CARD_INSTRUCTION })
+  addGitHubCardInstruction(system)
 }
 
 function prNumber(input: string): number | undefined {

@@ -1,14 +1,14 @@
-/** Time and expiry policy for pull-request card capability leases. */
-export interface PrCardLeaseOptions {
+/** Time and expiry policy for GitHub assistant-card capability leases. */
+export interface GitHubCardLeaseOptions {
   readonly ttl: number
   readonly now: () => number
 }
 
 /** Tracks short-lived Desktop renderer leases by server session. */
-export class PrCardLeases {
+export class GitHubCardLeases {
   readonly #leases = new Map<string, Map<string, number>>()
 
-  constructor(private readonly options: PrCardLeaseOptions) {}
+  constructor(private readonly options: GitHubCardLeaseOptions) {}
 
   /** Creates or renews one window's lease for a session and returns its expiry. */
   touch(sessionID: string, token: string): number {

@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test"
-import { PrCardLeases } from "./capability.ts"
+import { GitHubCardLeases } from "./capability.ts"
 
 test("does not enable card instructions without an active lease", () => {
-  const leases = new PrCardLeases({ ttl: 45_000, now: () => 1_000 })
+  const leases = new GitHubCardLeases({ ttl: 45_000, now: () => 1_000 })
 
   const enabled = leases.enabled("session-1")
 
@@ -10,7 +10,7 @@ test("does not enable card instructions without an active lease", () => {
 })
 
 test("enables card instructions for the session with one active lease", () => {
-  const leases = new PrCardLeases({ ttl: 45_000, now: () => 1_000 })
+  const leases = new GitHubCardLeases({ ttl: 45_000, now: () => 1_000 })
 
   const expiresAt = leases.touch("session-1", "window-1")
 
@@ -21,7 +21,7 @@ test("enables card instructions for the session with one active lease", () => {
 
 test("renews an existing window lease", () => {
   let now = 1_000
-  const leases = new PrCardLeases({ ttl: 45_000, now: () => now })
+  const leases = new GitHubCardLeases({ ttl: 45_000, now: () => now })
   leases.touch("session-1", "window-1")
 
   now = 20_000
@@ -32,7 +32,7 @@ test("renews an existing window lease", () => {
 })
 
 test("keeps a session enabled until its final window releases", () => {
-  const leases = new PrCardLeases({ ttl: 45_000, now: () => 1_000 })
+  const leases = new GitHubCardLeases({ ttl: 45_000, now: () => 1_000 })
   leases.touch("session-1", "window-1")
   leases.touch("session-1", "window-2")
 
@@ -46,7 +46,7 @@ test("keeps a session enabled until its final window releases", () => {
 
 test("prunes abandoned leases at the expiry boundary", () => {
   let now = 1_000
-  const leases = new PrCardLeases({ ttl: 45_000, now: () => now })
+  const leases = new GitHubCardLeases({ ttl: 45_000, now: () => now })
   leases.touch("session-1", "window-expiring")
   now = 10_000
   leases.touch("session-1", "window-live")

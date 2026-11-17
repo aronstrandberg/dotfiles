@@ -1,9 +1,12 @@
 import { existsSync } from "node:fs"
 import { Plugin } from "@opencode/plugin"
-import { PrCardLeases } from "./capability.ts"
+import { GitHubCardLeases } from "./capability.ts"
+import { addGitHubCardInstruction } from "./github-card.ts"
 import * as GitHub from "./github.ts"
-import { addPrCardInstruction, parsePrCardPayload, resolvePrCard } from "./pr-card.ts"
+import { parsePrCardPayload, resolvePrCard } from "./pr-card.ts"
 import { GhPrs, parsePrAction, type PrRef } from "./rpc.ts"
+import { RunCache } from "./run-cache.ts"
+import { parseRunCardPayload, parseRunCardRequest } from "./run-card.ts"
 import { GitHubLoadPool, RepositoryCache, SummaryCache } from "./summary-cache.ts"
 import { createTracker } from "./tracker.ts"
 import { trackerTools } from "./tracker-tools.ts"
@@ -12,6 +15,7 @@ const SUMMARY_TTL = 30_000
 const SUMMARY_CAPACITY = 100
 const SUMMARY_CONCURRENCY = 4
 const REPOSITORY_CAPACITY = 20
+const RUN_CAPACITY = 50
 const CARD_LEASE_TTL = 45_000
 
 export default Plugin.define({
@@ -38,7 +42,14 @@ export default Plugin.define({
       now: Date.now,
       load: (directory, signal) => GitHub.repository(directory, { gh, signal }),
     })
-    const leases = new PrCardLeases({ ttl: CARD_LEASE_TTL, now: Date.now })
+    const runs = new RunCache({
+      ttl: SUMMARY_TTL,
+      capacity: RUN_CAPACITY,
+      pool: loadPool,
+      now: Date.now,
+      load: (ref, signal) => GitHub.workflowRun(ref, { gh, signal }),
+    })
+    const leases = new GitHubCardLeases({ ttl: CARD_LEASE_TTL, now: Date.now })
     const tracker = createTracker(ctx.storage, Date.now)
 
     await ctx.tool.transform((editor) => {
@@ -72,17 +83,17 @@ export default Plugin.define({
     }
 
     const leaseInput = (input: unknown): { sessionID: string; token: string } => {
-      if (typeof input !== "object" || input === null) throw new GitHub.GhError("Invalid PR card capability lease")
+      if (typeof input !== "object" || input === null) throw new GitHub.GhError("Invalid GitHub card capability lease")
       const sessionID = Reflect.get(input, "sessionID")
       const token = Reflect.get(input, "token")
       if (typeof sessionID !== "string" || !sessionID || typeof token !== "string" || !token || token.length > 128) {
-        throw new GitHub.GhError("Invalid PR card capability lease")
+        throw new GitHub.GhError("Invalid GitHub card capability lease")
       }
       return { sessionID, token }
     }
 
     await ctx.session.hook("context", (event) => {
-      if (leases.enabled(event.sessionID)) addPrCardInstruction(event.system)
+      if (leases.enabled(event.sessionID)) addGitHubCardInstruction(event.system)
     })
 
     await ctx.rpc.register(GhPrs, {
@@ -126,6 +137,17 @@ export default Plugin.define({
           return call.error("gh", message(error), { message: message(error) })
         }
       },
+      resolveRun: async (input, call) => {
+        try {
+          const request = parseRunCardRequest(input)
+          const ref = parseRunCardPayload(request.reference)
+          if (!ref) throw new GitHub.GhError("Invalid GitHub Actions run card reference")
+          return json(await runs.get(ref, call.signal))
+        } catch (error) {
+          if (call.signal.aborted) throw error
+          return call.error("gh", message(error), { message: message(error) })
+        }
+      },
       cardLease: async (input) => {
         const request = leaseInput(input)
         return { expiresAt: leases.touch(request.sessionID, request.token) }
@@ -157,6 +179,7 @@ export default Plugin.define({
     })
     return () => {
       repositories.dispose()
+      runs.dispose()
       cache.dispose()
     }
   },

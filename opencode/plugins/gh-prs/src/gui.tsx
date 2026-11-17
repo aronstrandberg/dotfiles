@@ -11,14 +11,15 @@ import {
   Style,
   type PanelTab,
 } from "@opencode/plugin/gui"
-import { parsePrCardPayload } from "./pr-card.ts"
 import { api } from "./rpc.ts"
 import { parsePrUrl, prKey } from "./shared.ts"
-import { enablePrCardCapability, maintainPrCardLease } from "./gui/capability.ts"
+import { enableGitHubCardCapability, GITHUB_CARD_LANGUAGES, maintainGitHubCardLease } from "./gui/capability.ts"
+import { githubCardKind } from "./gui/card-language.ts"
 import { PrCardBlock } from "./gui/card-view.tsx"
 import { definition } from "./gui/definition.ts"
 import { createApp, LIST_TAB, pageFromUrl, parsePrTab, type Ctx } from "./gui/state.ts"
 import { css } from "./gui/styles.ts"
+import { RunCardBlock } from "./gui/run-card-view.tsx"
 import { ListView, PrView } from "./gui/views.tsx"
 
 const REFRESH_MS = 60_000
@@ -194,19 +195,22 @@ function setup(ctx: Ctx) {
     },
   })
 
-  enablePrCardCapability(
+  enableGitHubCardCapability(
     ctx.app.platform,
     CodeBlock,
     (registry) =>
       ctx.add(registry, {
-        languages: ["gh-pr"],
+        languages: GITHUB_CARD_LANGUAGES,
         render: (props) => {
-          if (!props.session || !parsePrCardPayload(props.code)) return undefined
-          return <PrCardBlock app={app} block={props} />
+          if (!props.session) return undefined
+          const kind = githubCardKind(props.language, props.code)
+          if (kind === "pr") return <PrCardBlock app={app} block={props} />
+          if (kind === "run") return <RunCardBlock app={app} block={props} />
+          return undefined
         },
       }),
     () =>
-      maintainPrCardLease({
+      maintainGitHubCardLease({
         current: () => ctx.sessions.current(),
         fallbackClient: ctx.client,
         token: crypto.randomUUID(),

@@ -21,7 +21,7 @@ export const css = `
 .ghp-error { margin: 12px 14px; padding: 8px 10px; border-radius: 8px; color: var(--ghp-bad);
   background: var(--v2-state-bg-danger, color-mix(in srgb, var(--ghp-bad) 10%, transparent)); white-space: pre-wrap; word-break: break-word; }
 
-/* Agent-message PR card */
+/* Agent-message GitHub cards */
 .ghp-card-loading { box-sizing: border-box; width: 100%; min-height: 72px; border: 1px solid var(--v2-border-border-muted, color-mix(in srgb, currentColor 14%, transparent));
   border-radius: 8px; padding: 10px 42px 10px 12px; color: var(--v2-text-text-base, CanvasText); background: var(--v2-background-bg-layer-01, color-mix(in srgb, currentColor 4%, transparent)); }
 .ghp-card { all: unset; box-sizing: border-box; width: 100%; min-height: 72px; border: 1px solid var(--v2-border-border-muted, color-mix(in srgb, currentColor 14%, transparent));
@@ -35,6 +35,10 @@ export const css = `
 .ghp-card-meta [data-checks="success"] { color: var(--v2-state-fg-success, #2da44e); }
 .ghp-card-meta [data-checks="failure"] { color: var(--v2-state-fg-danger, #cf222e); }
 .ghp-card-meta [data-checks="pending"] { color: var(--v2-state-fg-warning, #bf8700); }
+.ghp-card-meta [data-run-tone="success"] { color: var(--v2-state-fg-success, #2da44e); }
+.ghp-card-meta [data-run-tone="failure"] { color: var(--v2-state-fg-danger, #cf222e); }
+.ghp-card-meta [data-run-tone="warning"] { color: var(--v2-state-fg-warning, #bf8700); }
+.ghp-card-meta [data-run-tone="muted"] { color: var(--v2-text-text-faint, GrayText); }
 .ghp-card-loading { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--v2-text-text-muted, GrayText); }
 
 /* PR state */
