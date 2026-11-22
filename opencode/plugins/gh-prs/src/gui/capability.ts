@@ -1,11 +1,12 @@
 import { onCleanup, type Accessor } from "solid-js"
 import { createKeyed } from "@opencode/plugin/gui"
+import { ASSISTANT_CARD_LANGUAGES, type AssistantCardLanguage } from "../capability.ts"
 
 /** Card languages supported by this Desktop capability lease. */
-export const GITHUB_CARD_LANGUAGES = ["gh-pr", "gh-run"] as const
+export { ASSISTANT_CARD_LANGUAGES }
 
-/** Whether this GUI can register and render GitHub assistant-card code blocks. */
-export function supportsGitHubCardRenderer<Registry>(
+/** Whether this GUI can register and render assistant-card code blocks. */
+export function supportsAssistantCardRenderer<Registry>(
   platform: string,
   registry: Registry | undefined,
 ): registry is Registry {
@@ -13,46 +14,50 @@ export function supportsGitHubCardRenderer<Registry>(
 }
 
 /** Registers all renderers before starting session capability negotiation on supported Desktop hosts. */
-export function enableGitHubCardCapability<Registry>(
+export function enableAssistantCardCapability<Registry>(
   platform: string,
   registry: Registry | undefined,
   register: (registry: Registry) => void,
   maintain: () => void,
 ): boolean {
-  if (!supportsGitHubCardRenderer(platform, registry)) return false
+  if (!supportsAssistantCardRenderer(platform, registry)) return false
   register(registry)
   maintain()
   return true
 }
 
 /** Session identity and client needed to negotiate one renderer lease. */
-export interface GitHubCardLeaseSession<Client> {
+export interface AssistantCardLeaseSession<Client> {
   readonly key: string
   readonly id: string
   readonly server?: { readonly client: Client }
 }
 
 /** Client operations used by the GUI lease lifecycle. */
-export interface GitHubCardLeaseApi {
+export interface AssistantCardLeaseApi {
   lease(
-    input: { readonly sessionID: string; readonly token: string },
+    input: {
+      readonly sessionID: string
+      readonly token: string
+      readonly languages: readonly AssistantCardLanguage[]
+    },
     signal: AbortSignal,
   ): Promise<{ readonly expiresAt: number }>
   release(input: { readonly sessionID: string; readonly token: string }): Promise<{ readonly released: boolean }>
 }
 
 /** Dependencies for the window-owned capability lifecycle. */
-export interface GitHubCardLeaseLifecycleOptions<Client> {
-  readonly current: Accessor<GitHubCardLeaseSession<Client> | undefined>
+export interface AssistantCardLeaseLifecycleOptions<Client> {
+  readonly current: Accessor<AssistantCardLeaseSession<Client> | undefined>
   readonly fallbackClient: Client
   readonly token: string
   readonly repeat: (task: () => void, milliseconds: number) => () => void
-  readonly api: (client: Client) => GitHubCardLeaseApi
+  readonly api: (client: Client) => AssistantCardLeaseApi
   readonly onError: (error: unknown) => void
 }
 
 /** Maintains one renewable lease for each session routed in this window. */
-export function maintainGitHubCardLease<Client>(options: GitHubCardLeaseLifecycleOptions<Client>): void {
+export function maintainAssistantCardLease<Client>(options: AssistantCardLeaseLifecycleOptions<Client>): void {
   createKeyed(
     options.current,
     (session) => {
@@ -63,7 +68,10 @@ export function maintainGitHubCardLease<Client>(options: GitHubCardLeaseLifecycl
       const lease = () => {
         if (stopped || running) return
         const request = api
-          .lease({ sessionID: session.id, token: options.token }, controller.signal)
+          .lease(
+            { sessionID: session.id, token: options.token, languages: ASSISTANT_CARD_LANGUAGES },
+            controller.signal,
+          )
           .then(
             () => {},
             (error) => {

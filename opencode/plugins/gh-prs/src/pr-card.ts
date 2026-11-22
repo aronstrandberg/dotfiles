@@ -1,5 +1,5 @@
 import type { PrRef, PrSummary } from "./rpc.ts"
-import { addGitHubCardInstruction, GITHUB_CARD_INSTRUCTION } from "./github-card.ts"
+import { addAssistantCardInstruction, ASSISTANT_CARD_INSTRUCTION } from "./assistant-card.ts"
 
 /** One complete PR mention parsed from a `gh-pr` fence. */
 export type PrCardMention =
@@ -13,11 +13,11 @@ export interface PrCardSource {
 }
 
 /** Transient agent guidance added to primary session model calls. */
-export const PR_CARD_INSTRUCTION = GITHUB_CARD_INSTRUCTION
+export const PR_CARD_INSTRUCTION = ASSISTANT_CARD_INSTRUCTION
 
 /** Adds the transient model instruction used by the server session context hook. */
 export function addPrCardInstruction(system: Array<{ type: "text"; text: string }>): void {
-  addGitHubCardInstruction(system)
+  addAssistantCardInstruction(system, false)
 }
 
 function prNumber(input: string): number | undefined {

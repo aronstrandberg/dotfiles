@@ -1,4 +1,6 @@
 import { Rpc } from "@opencode/plugin/rpc"
+import { parseUnknownBuildStateLabel, type BuildState, type BuildSummary } from "./build.ts"
+import { buildAddress } from "./build-card.ts"
 import { parseCiCounts, parseCiStatus, type CiCounts, type CiStatus } from "./ci.ts"
 import type { RunState, RunSummary } from "./run.ts"
 import { parseTrackedPr } from "./work-status.ts"
@@ -174,6 +176,105 @@ export function parseRunSummary(value: unknown): RunSummary | null {
     }
   }
   return run
+}
+
+/** Parses Buildkite build output received across the RPC boundary. */
+export function parseBuildSummary(value: unknown): BuildSummary {
+  if (typeof value !== "object" || value === null) throw new TypeError("Invalid Buildkite build summary RPC output")
+  const allowed = new Set([
+    "organization",
+    "pipeline",
+    "number",
+    "state",
+    "url",
+    "branch",
+    "commit",
+    "message",
+    "createdAt",
+    "startedAt",
+    "finishedAt",
+    "failedJobs",
+  ])
+  const extra = Object.keys(value).filter((key) => !allowed.has(key))
+  if (extra.length > 0 || Object.keys(value).length !== allowed.size) {
+    throw new TypeError(`Invalid Buildkite build summary fields: ${extra.join(", ")}`)
+  }
+  const field = (name: string): unknown => Reflect.get(value, name)
+  const string = (name: string): string => {
+    const result = field(name)
+    if (typeof result !== "string") throw new TypeError(`Invalid Buildkite build summary field: ${name}`)
+    return result
+  }
+  const requiredTimestamp = (name: string): number => {
+    const result = field(name)
+    if (typeof result !== "number" || !Number.isFinite(result) || result < 0) {
+      throw new TypeError(`Invalid Buildkite build summary field: ${name}`)
+    }
+    return result
+  }
+  const nullableTimestamp = (name: string): number | null => {
+    if (field(name) === null) return null
+    return requiredTimestamp(name)
+  }
+  const number = field("number")
+  if (typeof number !== "number" || !Number.isSafeInteger(number) || number < 1) {
+    throw new TypeError("Invalid Buildkite build summary field: number")
+  }
+  const message = field("message")
+  if (message !== null && typeof message !== "string") {
+    throw new TypeError("Invalid Buildkite build summary field: message")
+  }
+  const failedJobs = field("failedJobs")
+  if (!Array.isArray(failedJobs) || failedJobs.some((job) => typeof job !== "string")) {
+    throw new TypeError("Invalid Buildkite build summary field: failedJobs")
+  }
+  const build: BuildSummary = {
+    organization: string("organization"),
+    pipeline: string("pipeline"),
+    number,
+    state: parseBuildSummaryState(field("state")),
+    url: string("url"),
+    branch: string("branch"),
+    commit: string("commit"),
+    message,
+    createdAt: requiredTimestamp("createdAt"),
+    startedAt: nullableTimestamp("startedAt"),
+    finishedAt: nullableTimestamp("finishedAt"),
+    failedJobs,
+  }
+  if (build.url !== buildAddress(build)) throw new TypeError("Invalid Buildkite build summary field: url")
+  return build
+}
+
+function parseBuildSummaryState(value: unknown): BuildState {
+  if (typeof value !== "object" || value === null) throw new TypeError("Invalid Buildkite build summary field: state")
+  const kind = Reflect.get(value, "kind")
+  switch (kind) {
+    case "scheduled":
+    case "running":
+    case "failing":
+    case "failed":
+    case "passed":
+    case "blocked":
+    case "canceling":
+    case "canceled":
+    case "skipped":
+    case "not_run":
+      if (Object.keys(value).length !== 1) throw new TypeError("Invalid Buildkite build summary field: state")
+      return { kind }
+    case "unknown": {
+      if (Object.keys(value).some((key) => key !== "kind" && key !== "label")) {
+        throw new TypeError("Invalid Buildkite build summary field: state")
+      }
+      try {
+        return { kind, label: parseUnknownBuildStateLabel(Reflect.get(value, "label")) }
+      } catch {
+        throw new TypeError("Invalid Buildkite build summary field: state")
+      }
+    }
+    default:
+      throw new TypeError("Invalid Buildkite build summary field: state")
+  }
 }
 
 function parseRunSummaryState(value: unknown): RunState {
@@ -525,16 +626,105 @@ const runSummary = {
   additionalProperties: false,
 } as const
 const nullableRunSummary = { anyOf: [runSummary, { type: "null" }] } as const
+const buildState = {
+  anyOf: [
+    {
+      type: "object",
+      properties: {
+        kind: {
+          type: "string",
+          enum: [
+            "scheduled",
+            "running",
+            "failing",
+            "failed",
+            "passed",
+            "blocked",
+            "canceling",
+            "canceled",
+            "skipped",
+            "not_run",
+          ],
+        },
+      },
+      required: ["kind"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: ["unknown"] },
+        label: { type: "string", minLength: 1, maxLength: 64 },
+      },
+      required: ["kind", "label"],
+      additionalProperties: false,
+    },
+  ],
+} as const
+const buildSummary = {
+  type: "object",
+  properties: {
+    organization: { type: "string" },
+    pipeline: { type: "string" },
+    number: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+    state: buildState,
+    url: { type: "string" },
+    branch: { type: "string" },
+    commit: { type: "string" },
+    message: { anyOf: [{ type: "string" }, { type: "null" }] },
+    createdAt: { type: "number", minimum: 0 },
+    startedAt: { anyOf: [{ type: "number", minimum: 0 }, { type: "null" }] },
+    finishedAt: { anyOf: [{ type: "number", minimum: 0 }, { type: "null" }] },
+    failedJobs: { type: "array", items: { type: "string" } },
+  },
+  required: [
+    "organization",
+    "pipeline",
+    "number",
+    "state",
+    "url",
+    "branch",
+    "commit",
+    "message",
+    "createdAt",
+    "startedAt",
+    "finishedAt",
+    "failedJobs",
+  ],
+  additionalProperties: false,
+} as const
 const cardLeaseInput = {
   type: "object",
   properties: {
     sessionID: { type: "string", minLength: 1 },
     token: { type: "string", minLength: 1, maxLength: 128 },
+    languages: {
+      type: "array",
+      items: { type: "string", enum: ["gh-pr", "gh-run", "bk-build"] },
+      minItems: 2,
+      maxItems: 3,
+      uniqueItems: true,
+    },
   },
   required: ["sessionID", "token"],
   additionalProperties: false,
 } as const
-const errors = { gh: { type: "object", properties: { message: { type: "string" } } } } as const
+const errors = {
+  gh: {
+    type: "object",
+    properties: { message: { type: "string" } },
+    required: ["message"],
+    additionalProperties: false,
+  },
+} as const
+const buildErrors = {
+  ratchet: {
+    type: "object",
+    properties: { message: { type: "string" } },
+    required: ["message"],
+    additionalProperties: false,
+  },
+} as const
 
 export const GhPrs = Rpc.define({
   id: "ghprs",
@@ -572,6 +762,16 @@ export const GhPrs = Rpc.define({
       },
       output: nullableRunSummary,
       errors,
+    },
+    resolveBuild: {
+      input: {
+        type: "object",
+        properties: { reference: { type: "string" } },
+        required: ["reference"],
+        additionalProperties: false,
+      },
+      output: buildSummary,
+      errors: buildErrors,
     },
     cardLease: {
       input: cardLeaseInput,
@@ -641,8 +841,12 @@ export function api(client: { rpc(definition: typeof GhPrs): unknown }) {
       parsePrSummary(await rpc.resolve(input, { signal })),
     resolveRun: async (input: { reference: string }, signal?: AbortSignal) =>
       parseRunSummary(await rpc.resolveRun(input, { signal })),
-    cardLease: async (input: { sessionID: string; token: string }, signal?: AbortSignal) =>
-      parseCardLease(await rpc.cardLease(input, { signal })),
+    resolveBuild: async (input: { reference: string }, signal?: AbortSignal) =>
+      parseBuildSummary(await rpc.resolveBuild(input, { signal })),
+    cardLease: async (
+      input: { sessionID: string; token: string; languages?: readonly ("gh-pr" | "gh-run" | "bk-build")[] },
+      signal?: AbortSignal,
+    ) => parseCardLease(await rpc.cardLease(input, { signal })),
     cardRelease: async (input: { sessionID: string; token: string }) => parseCardRelease(await rpc.cardRelease(input)),
     detail: (input: PrRef) => rpc.detail(pick(input)) as Promise<PrDetail>,
     files: (input: PrRef) => rpc.files(pick(input)) as Promise<{ files: PrFile[]; truncated: boolean }>,
@@ -651,18 +855,19 @@ export function api(client: { rpc(definition: typeof GhPrs): unknown }) {
 }
 
 function parseCardLease(value: unknown): { readonly expiresAt: number } {
-  if (typeof value !== "object" || value === null) throw new TypeError("Invalid GitHub card capability lease output")
+  if (typeof value !== "object" || value === null) throw new TypeError("Invalid assistant-card capability lease output")
   const expiresAt = Reflect.get(value, "expiresAt")
   if (typeof expiresAt !== "number" || !Number.isInteger(expiresAt) || expiresAt < 0) {
-    throw new TypeError("Invalid GitHub card capability lease output")
+    throw new TypeError("Invalid assistant-card capability lease output")
   }
   return { expiresAt }
 }
 
 function parseCardRelease(value: unknown): { readonly released: boolean } {
-  if (typeof value !== "object" || value === null) throw new TypeError("Invalid GitHub card capability release output")
+  if (typeof value !== "object" || value === null)
+    throw new TypeError("Invalid assistant-card capability release output")
   const released = Reflect.get(value, "released")
-  if (typeof released !== "boolean") throw new TypeError("Invalid GitHub card capability release output")
+  if (typeof released !== "boolean") throw new TypeError("Invalid assistant-card capability release output")
   return { released }
 }
 

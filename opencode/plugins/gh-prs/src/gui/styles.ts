@@ -21,7 +21,7 @@ export const css = `
 .ghp-error { margin: 12px 14px; padding: 8px 10px; border-radius: 8px; color: var(--ghp-bad);
   background: var(--v2-state-bg-danger, color-mix(in srgb, var(--ghp-bad) 10%, transparent)); white-space: pre-wrap; word-break: break-word; }
 
-/* Agent-message GitHub cards */
+/* Agent-message cards */
 .ghp-card-loading { box-sizing: border-box; width: 100%; min-height: 72px; border: 1px solid var(--v2-border-border-muted, color-mix(in srgb, currentColor 14%, transparent));
   border-radius: 8px; padding: 10px 42px 10px 12px; color: var(--v2-text-text-base, CanvasText); background: var(--v2-background-bg-layer-01, color-mix(in srgb, currentColor 4%, transparent)); }
 .ghp-card { all: unset; box-sizing: border-box; width: 100%; min-height: 72px; border: 1px solid var(--v2-border-border-muted, color-mix(in srgb, currentColor 14%, transparent));
@@ -31,7 +31,9 @@ export const css = `
 .ghp-card:focus-visible { outline: 2px solid var(--v2-border-border-focus, LinkText); outline-offset: 2px; }
 .ghp-card-label { display: inline-flex; align-items: center; gap: 5px; width: max-content; font-size: 11px; color: var(--v2-text-text-muted, GrayText); }
 .ghp-card-title { font-size: 14px; font-weight: 500; line-height: 1.35; overflow-wrap: anywhere; }
+.ghp-card-message { font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
 .ghp-card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 11.5px; color: var(--v2-text-text-muted, GrayText); }
+.ghp-card-failures { font-size: 11.5px; color: var(--v2-state-fg-danger, #cf222e); overflow-wrap: anywhere; }
 .ghp-card-meta [data-checks="success"] { color: var(--v2-state-fg-success, #2da44e); }
 .ghp-card-meta [data-checks="failure"] { color: var(--v2-state-fg-danger, #cf222e); }
 .ghp-card-meta [data-checks="pending"] { color: var(--v2-state-fg-warning, #bf8700); }

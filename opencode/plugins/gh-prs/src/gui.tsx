@@ -13,8 +13,13 @@ import {
 } from "@opencode/plugin/gui"
 import { api } from "./rpc.ts"
 import { parsePrUrl, prKey } from "./shared.ts"
-import { enableGitHubCardCapability, GITHUB_CARD_LANGUAGES, maintainGitHubCardLease } from "./gui/capability.ts"
-import { githubCardKind } from "./gui/card-language.ts"
+import {
+  ASSISTANT_CARD_LANGUAGES,
+  enableAssistantCardCapability,
+  maintainAssistantCardLease,
+} from "./gui/capability.ts"
+import { BuildCardBlock } from "./gui/build-card-view.tsx"
+import { assistantCardKind } from "./gui/card-language.ts"
 import { PrCardBlock } from "./gui/card-view.tsx"
 import { definition } from "./gui/definition.ts"
 import { createApp, LIST_TAB, pageFromUrl, parsePrTab, type Ctx } from "./gui/state.ts"
@@ -195,22 +200,23 @@ function setup(ctx: Ctx) {
     },
   })
 
-  enableGitHubCardCapability(
+  enableAssistantCardCapability(
     ctx.app.platform,
     CodeBlock,
     (registry) =>
       ctx.add(registry, {
-        languages: GITHUB_CARD_LANGUAGES,
+        languages: ASSISTANT_CARD_LANGUAGES,
         render: (props) => {
           if (!props.session) return undefined
-          const kind = githubCardKind(props.language, props.code)
+          const kind = assistantCardKind(props.language, props.code)
           if (kind === "pr") return <PrCardBlock app={app} block={props} />
           if (kind === "run") return <RunCardBlock app={app} block={props} />
+          if (kind === "build") return <BuildCardBlock app={app} block={props} />
           return undefined
         },
       }),
     () =>
-      maintainGitHubCardLease({
+      maintainAssistantCardLease({
         current: () => ctx.sessions.current(),
         fallbackClient: ctx.client,
         token: crypto.randomUUID(),

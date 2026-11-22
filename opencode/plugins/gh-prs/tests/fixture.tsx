@@ -1,6 +1,8 @@
 import { createSignal, ErrorBoundary } from "solid-js"
 import { render } from "solid-js/web"
 import type { CodeBlockProps } from "@opencode/plugin/gui"
+import type { BuildSummary } from "../src/build.ts"
+import { BuildCardBlock } from "../src/gui/build-card-view.tsx"
 import { PrList } from "../src/gui/pr-list.tsx"
 import { RunCardBlock } from "../src/gui/run-card-view.tsx"
 import { css } from "../src/gui/styles.ts"
@@ -192,11 +194,83 @@ function RunCardFixture(props: { readonly mode: "loading" | "success" | "error" 
   )
 }
 
+const build: BuildSummary = {
+  organization: "lovable",
+  pipeline: "deploy-production",
+  number: 42,
+  state: { kind: "failing" },
+  url: "https://buildkite.com/lovable/deploy-production/builds/42",
+  branch: "main",
+  commit: "0123456789abcdef0123456789abcdef01234567",
+  message: "Deploy the API\nextra detail",
+  createdAt: 1_700_000_000_000,
+  startedAt: 1_700_000_005_000,
+  finishedAt: null,
+  failedJobs: ["lint", "test", "deploy", "notify", "cleanup"],
+}
+
+function BuildCardFixture(props: { readonly mode: "loading" | "success" | "error" | "null" }) {
+  const [opened, setOpened] = createSignal("")
+  const client = {
+    rpc: () => ({
+      resolveBuild: async (_input: unknown, options?: { readonly signal?: AbortSignal }) => {
+        if (props.mode === "error") throw new Error("Ratchet unavailable")
+        if (props.mode === "null") return null
+        if (props.mode === "loading") {
+          return await new Promise<never>((_resolve, reject) => {
+            options?.signal?.addEventListener("abort", () => reject(options.signal?.reason), { once: true })
+          })
+        }
+        return build
+      },
+    }),
+  }
+  const app = {
+    ctx: {
+      client,
+      system: { openExternal: (url: string) => setOpened(url) },
+      ui: { Icon: () => <span aria-hidden="true">BK</span> },
+    },
+  } as unknown as App
+  const block = {
+    code: `${build.url}#job-id`,
+    language: "bk-build",
+    session: {
+      key: "local\nsession-1",
+      id: "session-1",
+      directory: "/workspace",
+      server: { client },
+    },
+  } as unknown as CodeBlockProps
+
+  return (
+    <>
+      <style>{css}</style>
+      <ErrorBoundary
+        fallback={(error) => (
+          <pre data-host-fallback="true">
+            {block.code}
+            {"\n"}
+            {error instanceof Error ? error.message : "Unknown error"}
+          </pre>
+        )}
+      >
+        <BuildCardBlock app={app} block={block} />
+      </ErrorBoundary>
+      <div role="status">{opened()}</div>
+    </>
+  )
+}
+
 function Fixture() {
   const fixture = new URLSearchParams(location.search).get("fixture")
   if (fixture === "run-loading") return <RunCardFixture mode="loading" />
   if (fixture === "run-success") return <RunCardFixture mode="success" />
   if (fixture === "run-error") return <RunCardFixture mode="error" />
+  if (fixture === "build-loading") return <BuildCardFixture mode="loading" />
+  if (fixture === "build-success") return <BuildCardFixture mode="success" />
+  if (fixture === "build-error") return <BuildCardFixture mode="error" />
+  if (fixture === "build-null") return <BuildCardFixture mode="null" />
   return <PrListFixture />
 }
 

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { addGitHubCardInstruction } from "./github-card.ts"
+import { addAssistantCardInstruction } from "./assistant-card.ts"
 import { parseRunCardPayload, parseRunCardRequest } from "./run-card.ts"
 
 test("parses exactly one canonical GitHub Actions run URL with surrounding whitespace", () => {
@@ -53,7 +53,7 @@ test("applies GitHub owner and repository name rules separately", () => {
 test("composes PR and run guidance as one transient GitHub card instruction", () => {
   const system: Array<{ type: "text"; text: string }> = []
 
-  addGitHubCardInstruction(system)
+  addAssistantCardInstruction(system, false)
 
   expect(system).toHaveLength(1)
   expect(system[0]?.text).toContain("Keep the ordinary explanatory prose")

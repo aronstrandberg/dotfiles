@@ -1,39 +1,39 @@
 import { expect, test } from "bun:test"
 import { createRoot, createSignal } from "solid-js"
 import {
-  enableGitHubCardCapability,
-  GITHUB_CARD_LANGUAGES,
-  maintainGitHubCardLease,
-  supportsGitHubCardRenderer,
+  ASSISTANT_CARD_LANGUAGES,
+  enableAssistantCardCapability,
+  maintainAssistantCardLease,
+  supportsAssistantCardRenderer,
 } from "./capability.ts"
 
 test("detects Desktop hosts that can register the PR card renderer", () => {
   const registry = {}
 
-  expect(supportsGitHubCardRenderer("desktop", registry)).toBe(true)
-  expect(supportsGitHubCardRenderer("desktop", undefined)).toBe(false)
-  expect(supportsGitHubCardRenderer("web", registry)).toBe(false)
+  expect(supportsAssistantCardRenderer("desktop", registry)).toBe(true)
+  expect(supportsAssistantCardRenderer("desktop", undefined)).toBe(false)
+  expect(supportsAssistantCardRenderer("web", registry)).toBe(false)
 })
 
-test("registers both GitHub card languages before leasing and does nothing on unsupported hosts", () => {
+test("registers all assistant-card languages before leasing and does nothing on unsupported hosts", () => {
   const registry = {}
   const supported: string[] = []
   const unsupported: string[] = []
 
-  enableGitHubCardCapability(
+  enableAssistantCardCapability(
     "desktop",
     registry,
-    () => supported.push(`registered:${GITHUB_CARD_LANGUAGES.join(",")}`),
+    () => supported.push(`registered:${ASSISTANT_CARD_LANGUAGES.join(",")}`),
     () => supported.push("leased"),
   )
-  enableGitHubCardCapability(
+  enableAssistantCardCapability(
     "desktop",
     undefined,
     () => unsupported.push("registered"),
     () => unsupported.push("leased"),
   )
 
-  expect(supported).toEqual(["registered:gh-pr,gh-run", "leased"])
+  expect(supported).toEqual(["registered:gh-pr,gh-run,bk-build", "leased"])
   expect(unsupported).toEqual([])
 })
 
@@ -46,7 +46,7 @@ test("leases the routed session through its remote server client", async () => {
 
   createRoot((rootDispose) => {
     dispose = rootDispose
-    maintainGitHubCardLease({
+    maintainAssistantCardLease({
       current: session,
       fallbackClient: localClient,
       token: "window-1",
@@ -67,6 +67,40 @@ test("leases the routed session through its remote server client", async () => {
   dispose()
 })
 
+test("declares all card languages only after their renderers register", async () => {
+  const events: string[] = []
+  const [session] = createSignal({ key: "local\nsession-1", id: "session-1", server: { client: {} } })
+  let dispose = () => {}
+
+  createRoot((rootDispose) => {
+    dispose = rootDispose
+    enableAssistantCardCapability(
+      "desktop",
+      {},
+      () => events.push("registered"),
+      () =>
+        maintainAssistantCardLease({
+          current: session,
+          fallbackClient: {},
+          token: "window-1",
+          repeat: () => () => {},
+          api: () => ({
+            lease: async (input) => {
+              events.push(`leased:${input.languages?.join(",")}`)
+              return { expiresAt: 46_000 }
+            },
+            release: async () => ({ released: true }),
+          }),
+          onError: () => {},
+        }),
+    )
+  })
+  await Bun.sleep(0)
+
+  expect(events).toEqual(["registered", "leased:gh-pr,gh-run,bk-build"])
+  dispose()
+})
+
 test("renews the active session lease every fifteen seconds", async () => {
   const client = {}
   const [session] = createSignal({ key: "local\nsession-1", id: "session-1", server: { client } })
@@ -77,7 +111,7 @@ test("renews the active session lease every fifteen seconds", async () => {
 
   createRoot((rootDispose) => {
     dispose = rootDispose
-    maintainGitHubCardLease({
+    maintainAssistantCardLease({
       current: session,
       fallbackClient: client,
       token: "window-1",
@@ -113,7 +147,7 @@ test("releases the active lease when the window owner closes", async () => {
 
   createRoot((rootDispose) => {
     dispose = rootDispose
-    maintainGitHubCardLease({
+    maintainAssistantCardLease({
       current: session,
       fallbackClient: client,
       token: "window-1",
@@ -147,7 +181,7 @@ test("releases only after an in-flight lease request settles", async () => {
 
   createRoot((rootDispose) => {
     dispose = rootDispose
-    maintainGitHubCardLease({
+    maintainAssistantCardLease({
       current: session,
       fallbackClient: client,
       token: "window-1",

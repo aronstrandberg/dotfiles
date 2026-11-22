@@ -64,12 +64,32 @@ local server and the VM to use the table with remote sessions.
   run and attempt, branch and commit, event, normalized status or conclusion, and elapsed time
   or duration. Clicking it opens the run in the system browser. It does not rerun, cancel, or
   dispatch workflows, and it does not show jobs or logs.
-- The card renderers are Desktop-only. After a window registers both experimental `CodeBlock`
-  languages, it renews a short-lived capability lease for the session routed in that window.
-  Only a session with an active lease tells the agent to emit `gh-pr` or `gh-run` fences. Closing the window
-  or routing away releases its lease, and abandoned leases expire after 45 seconds. Separate
-  window tokens let several windows view the same session safely.
-- Invalid references and GitHub lookup failures keep the original fenced code block instead of
+- **Buildkite builds mentioned by the agent** render as read-only status cards. A `bk-build`
+  fence accepts exactly one
+  `https://buildkite.com/<organization>/<pipeline>/builds/<number>` address. A job fragment is
+  allowed and ignored. The card shows the pipeline and build number, commit message, branch and
+  commit, textual state, elapsed time or duration, and up to three failed job names. Clicking it
+  opens the build in the system browser. It cannot retry, cancel, or unblock builds, and it does
+  not read logs or annotations.
+- Build cards read through the user's
+  [Ratchet](https://github.com/aronstrandberg/ratchet) service on the machine that runs the
+  session's OpenCode server. The plugin sends only the canonical build address to
+  `GET /builds?url=<address>`. It holds no Buildkite token and never calls Buildkite directly.
+  The `ratchet` plugin option selects the service base URL and defaults to
+  `http://127.0.0.1:9876`.
+- The card renderers are Desktop-only. After a window registers the three experimental `CodeBlock`
+  languages, it declares those languages in a short-lived capability lease for the session routed
+  in that window. Older Desktop bundles omit this declaration and therefore lease only `gh-pr`
+  and `gh-run`.
+  Only a session with an active lease tells the agent to emit `gh-pr` or `gh-run` fences. The
+  `bk-build` instruction additionally requires at least one live window lease that declares
+  `bk-build`, and the server's last background Ratchet probe must have observed the documented
+  build route. In a session open in old and new Desktop windows, the capable window wins and the
+  instruction is enabled; an old window can show that fence as plain code. The synchronous context
+  hook never waits for the probe and starts with Buildkite unavailable. Closing the window or
+  routing away releases its lease, and abandoned leases expire after 45 seconds. Separate window
+  tokens let several windows view the same session safely.
+- Invalid references and GitHub or Ratchet lookup failures keep the original fenced code block instead of
   showing an empty card. The web app, TUI, and Desktop releases that predate `CodeBlock` never
   lease the capability, so their agents are not instructed to emit raw card fences. A manual
   or previously persisted fence remains plain code on those hosts.
@@ -136,8 +156,18 @@ desktop app is connected to a remote server, install the plugin on both machines
 loads from the local copy and calls the remote server's copy, where the sessions and `gh`
 live.
 
-To use a `gh` binary that is not on the server's `PATH`, load the plugin from `plugins` in
-`opencode.jsonc` instead, with `{ "package": "<path>", "options": { "gh": "/usr/local/bin/gh" } }`.
+To use a `gh` binary that is not on the server's `PATH`, or a Ratchet service at another address,
+load the plugin from `plugins` in `opencode.jsonc` instead:
+
+```jsonc
+{
+  "package": "<path>",
+  "options": {
+    "gh": "/usr/local/bin/gh",
+    "ratchet": "http://127.0.0.1:9876",
+  },
+}
+```
 
 ## Develop
 
