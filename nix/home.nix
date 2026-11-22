@@ -35,7 +35,11 @@ in
       "starship.toml".source = "${repo}/starship/starship.toml";
       "bat/config".source = "${repo}/bat/config";
       "nvim".source = live "vim/.config/nvim";
-      "opencode/plugins/gh-prs".source = "${repo}/opencode/plugins/gh-prs";
+      # OpenCode's plugin scan skips a symlinked directory, so link the files into a real one.
+      "opencode/plugins/gh-prs" = {
+        source = "${repo}/opencode/plugins/gh-prs";
+        recursive = true;
+      };
       "opencode/skills/go-coding-standards".source = "${repo}/opencode/skills/go-coding-standards";
     };
 
