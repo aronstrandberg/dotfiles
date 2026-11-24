@@ -40,6 +40,10 @@ in
         source = "${repo}/opencode/plugins/gh-prs";
         recursive = true;
       };
+      "opencode/plugins/mpl" = {
+        source = "${repo}/opencode/plugins/mpl";
+        recursive = true;
+      };
       "opencode/skills/go-coding-standards".source = "${repo}/opencode/skills/go-coding-standards";
     };
 
