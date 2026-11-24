@@ -72,12 +72,13 @@ test("the configured default theme applies when a spec names none, and an explic
   assert.equal(explicit.output.theme, "pro-dark")
 })
 
-test("the guide names the render tool and every Figure method a spec may call", async () => {
+test("the guide names the render tool, every Figure method a spec may call, and how to show the chart to the user", async () => {
   const tools = mplTools({ outDir })
 
   const guide = await tools.guide.execute()
 
   assert.match(guide.content, /tools\.mpl\.render/)
   assert.match(guide.content, /fig\.colorbar/)
+  assert.match(guide.content, /Markdown image/)
   assert.doesNotMatch(guide.content, /\bpi\b|image\(/)
 })

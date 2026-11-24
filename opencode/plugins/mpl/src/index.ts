@@ -71,7 +71,7 @@ export default Plugin.define({
       editor.add({
         name: "render",
         description:
-          "Render a chart from a list of matplotlib Axes/Figure calls to PNG/SVG files. Read tools.mpl.guide() before the first chart. The PNG is attached to the execute result automatically. Returns { pngPath?, svgPath?, width?, height?, theme } or { error } naming the failing call; fix the spec and call again.",
+          "Render a chart from a list of matplotlib Axes/Figure calls to PNG/SVG files. Read tools.mpl.guide() before the first chart. The PNG is attached to the execute result for you only; show it to the user with a Markdown image of pngPath in your reply. Returns { pngPath?, svgPath?, width?, height?, theme } or { error } naming the failing call; fix the spec and call again.",
         input: renderInput,
         output: renderOutput,
         options,

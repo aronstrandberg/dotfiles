@@ -18634,7 +18634,7 @@ Gotchas:
 - Keep each series under ~100k points.
 - fig.colorbar inside a subplot grid works with tight_layout.
 
-Result: { pngPath?, svgPath?, width?, height?, theme } or { error }. The PNG is attached to the execute result automatically, so you see the chart once the script returns; return r.error or r.pngPath from the script.
+Result: { pngPath?, svgPath?, width?, height?, theme } or { error }. The PNG is attached to the execute result, so you see the chart once the script returns; return r.error or r.pngPath from the script. The user does not see that attachment: to show them the chart, put a Markdown image with the absolute path in your reply, such as ![p95 latency by region](/abs/path/chart.png).
 
 Done when: the image has no overlapping or clipped labels, no legend covering data, and readable ticks; otherwise adjust (figsize, ticks, legend loc, ylim headroom) and re-render.`;
 
@@ -18742,7 +18742,7 @@ var src_default = Plugin.define({
       });
       editor.add({
         name: "render",
-        description: "Render a chart from a list of matplotlib Axes/Figure calls to PNG/SVG files. Read tools.mpl.guide() before the first chart. The PNG is attached to the execute result automatically. Returns { pngPath?, svgPath?, width?, height?, theme } or { error } naming the failing call; fix the spec and call again.",
+        description: "Render a chart from a list of matplotlib Axes/Figure calls to PNG/SVG files. Read tools.mpl.guide() before the first chart. The PNG is attached to the execute result for you only; show it to the user with a Markdown image of pngPath in your reply. Returns { pngPath?, svgPath?, width?, height?, theme } or { error } naming the failing call; fix the spec and call again.",
         input: renderInput,
         output: renderOutput,
         options,
