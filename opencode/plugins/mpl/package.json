@@ -1,0 +1,33 @@
+{
+  "name": "opencode-mpl",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Code Mode tool that draws matplotlib charts with mpl and shows them in the session.",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/server.js"
+  },
+  "scripts": {
+    "build": "bun build src/index.ts --target=node --format=esm --external @opencode/plugin --outfile dist/server.js && cp node_modules/mpl/LICENSE dist/mpl-LICENSE && cp node_modules/mpl/THIRD_PARTY_NOTICES.md dist/mpl-THIRD_PARTY_NOTICES.md",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@opencode/plugin": "0.0.0-dev-639",
+    "@types/node": "^24.19.2",
+    "mpl": "github:ivarvong/mpl#8befb5cddc461d9d3a29b4b8270efe2d559f9d00",
+    "oxfmt": "0.78.0",
+    "oxlint": "1.93.0",
+    "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "github:ivarvong/mpl#8befb5cddc461d9d3a29b4b8270efe2d559f9d00": true
+  }
+}
